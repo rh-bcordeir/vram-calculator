@@ -5,6 +5,7 @@ import { useTheme } from "./lib/useTheme.js";
 import ModelPanel from "./components/ModelPanel.jsx";
 import MemoryMap from "./components/MemoryMap.jsx";
 import { NumberField, SliderField, SelectField, TableRow } from "./components/Fields.jsx";
+import { caption, card, code, hint, legend } from "./lib/ui.js";
 
 export default function App() {
   const [theme, toggleTheme] = useTheme();
@@ -47,30 +48,38 @@ export default function App() {
   const flags = vllmFlags({ context, concurrency, utilization, gpuCount, kvBytes });
 
   return (
-    <div className="root">
-      <header className="head">
+    <div className="px-5 pt-6.5 pb-11">
+      <header className="mx-auto mb-5.5 flex max-w-[70rem] flex-wrap items-start justify-between gap-5">
         <div>
-          <p className="eyebrow">GPU sizing · vLLM</p>
-          <h1>
-            How much VRAM<span className="dot">.</span>
+          <p className={`${caption} mb-1.5 tracking-[0.16em]`}>GPU sizing · vLLM</p>
+          <h1 className="m-0 font-display text-[clamp(2rem,5.5vw,3.25rem)] leading-[0.95] font-black tracking-[-0.03em]">
+            How much VRAM<span className="text-bad">.</span>
           </h1>
-          <p className="sub">
+          <p className="mt-2.5 max-w-[44ch] text-field text-muted">
             Weights, KV cache and overhead against the memory the server can actually use.
           </p>
         </div>
         <button
           type="button"
-          className="theme-toggle"
+          className="flex cursor-pointer gap-0.5 rounded-ctl border border-line bg-sunken p-[3px]"
           onClick={toggleTheme}
           aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}
         >
-          <span className={theme === "light" ? "on" : ""}>Light</span>
-          <span className={theme === "dark" ? "on" : ""}>Dark</span>
+          {["light", "dark"].map((t) => (
+            <span
+              key={t}
+              className={`rounded-[1px] px-3 py-1.5 font-mono text-label tracking-[0.08em] uppercase ${
+                theme === t ? "bg-ink font-bold text-panel" : "text-muted"
+              }`}
+            >
+              {t}
+            </span>
+          ))}
         </button>
       </header>
 
-      <div className="grid">
-        <section className="col">
+      <div className="mx-auto grid max-w-[70rem] grid-cols-1 items-start gap-5 min-[921px]:grid-cols-[minmax(0,1fr)_minmax(0,1.02fr)]">
+        <section className="flex flex-col gap-4">
           <ModelPanel
             model={model}
             setModel={setModel}
@@ -80,8 +89,8 @@ export default function App() {
             setKvDtype={setKvDtype}
           />
 
-          <fieldset className="card">
-            <legend>Workload</legend>
+          <fieldset className={card}>
+            <legend className={legend}>Workload</legend>
             <SliderField
               label="Max context"
               value={context}
@@ -99,15 +108,15 @@ export default function App() {
               max={256}
               step={1}
             />
-            <p className="hint">
+            <p className={hint}>
               Context × concurrency is the worst case: every sequence sitting at full length at the
               same moment.
             </p>
           </fieldset>
 
-          <fieldset className="card">
-            <legend>Hardware</legend>
-            <div className="row-2">
+          <fieldset className={card}>
+            <legend className={legend}>Hardware</legend>
+            <div className="grid grid-cols-[2fr_1fr] gap-3">
               <SelectField
                 label="Accelerator"
                 value={gpuId}
@@ -137,15 +146,27 @@ export default function App() {
           </fieldset>
         </section>
 
-        <section className="col">
-          <div className={result.fits ? "verdict ok" : "verdict bad"}>
-            <div className="verdict-num">
-              <strong>{fmt(result.total)}</strong>
-              <span>GiB</span>
+        <section className="flex flex-col gap-4">
+          <div
+            className={`flex items-center gap-4.5 rounded-panel border border-line border-l-[5px] bg-panel px-5 py-4.5 ${
+              result.fits ? "border-l-good" : "border-l-bad"
+            }`}
+          >
+            <div className="flex items-baseline gap-1.25">
+              <strong className="font-display text-hero leading-none font-black tracking-[-0.035em]">
+                {fmt(result.total)}
+              </strong>
+              <span className="font-mono text-row text-muted">GiB</span>
             </div>
             <div>
-              <p className="verdict-title">{result.fits ? "Fits" : "Does not fit"}</p>
-              <p className="verdict-body">
+              <p
+                className={`mb-0.75 font-mono text-label font-bold tracking-[0.14em] uppercase ${
+                  result.fits ? "text-good" : "text-bad"
+                }`}
+              >
+                {result.fits ? "Fits" : "Does not fit"}
+              </p>
+              <p className="text-row leading-[1.5] text-muted">
                 {result.fits
                   ? `${fmt(result.slack)} GiB left of the ${fmt(result.usable)} GiB usable on ${gpuCount}× ${gpu.name}.`
                   : `${fmt(-result.slack)} GiB short. ${gpuCount}× ${gpu.name} gives ${fmt(result.usable)} GiB usable.`}
@@ -155,7 +176,7 @@ export default function App() {
 
           <MemoryMap result={result} />
 
-          <div className="table">
+          <div className="rounded-panel border border-line bg-panel">
             <TableRow label="KV cache per token" value={`${fmt(result.kvPerTokenKiB, 0)} KiB`} />
             <TableRow label="KV cache per request" value={`${fmt(result.kvPerRequestGib, 2)} GiB`} />
             <TableRow
@@ -171,20 +192,24 @@ export default function App() {
           </div>
 
           {result.weightsAloneTooBig && (
-            <p className="alarm">
+            <p className="border-l-[3px] border-l-bad bg-alarm-bg px-3.5 py-3 text-row leading-[1.55] text-alarm-ink">
               The weights alone exceed usable memory. Add GPUs, quantize the weights, or move to a
               larger accelerator — trimming context or concurrency will not help.
             </p>
           )}
 
-          <div className="flags">
-            <p className="flags-title">Matching vLLM arguments</p>
-            <pre>{flags.join(" \\\n")}</pre>
+          <div className="rounded-panel bg-code-bg px-4.5 pt-3.5 pb-4">
+            <p className={`${caption} mb-2.25 tracking-[0.14em] text-code-label`}>
+              Matching vLLM arguments
+            </p>
+            <pre className="m-0 font-mono text-note leading-[1.7] break-words whitespace-pre-wrap text-code-ink">
+              {flags.join(" \\\n")}
+            </pre>
           </div>
 
-          <p className="foot">
-            A planning estimate. Confirm it against the <code>GPU KV cache size</code> vLLM prints at
-            startup, or the <code>vllm:gpu_cache_usage_perc</code> metric. Latent attention (MLA) and
+          <p className="text-note leading-[1.6] text-muted">
+            A planning estimate. Confirm it against the <code className={code}>GPU KV cache size</code> vLLM prints at
+            startup, or the <code className={code}>vllm:gpu_cache_usage_perc</code> metric. Latent attention (MLA) and
             sliding-window models cache far less than this formula assumes.
           </p>
         </section>
