@@ -1,5 +1,9 @@
 import React from "react";
 
+// Imported (not referenced from public/) so Vite rewrites the URL against the
+// relative base and the logo resolves when served from a subpath.
+import logoRedHat from "../assets/logo-redhat-reversed.png";
+
 /**
  * Red Hat application masthead: fixed black bar, hamburger for the sidenav,
  * reversed logo, product name, and the account slot on the right. Always
@@ -20,7 +24,7 @@ export default function Masthead({ theme, toggleTheme, onToggleNav, user = "bcor
         </svg>
       </button>
 
-      <img src="/logo-redhat-reversed.png" alt="Red Hat" className="block h-6.5 w-auto" />
+      <img src={logoRedHat} alt="Red Hat" className="block h-6.5 w-auto" />
       <div className="ml-0.5 flex flex-col leading-tight">
         <span className="font-display text-[0.9375rem] font-medium text-white">Red Hat AI</span>
         <span className="text-label text-[#a3a3a3]">VRAM calculator</span>
