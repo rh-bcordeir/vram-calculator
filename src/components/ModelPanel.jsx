@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { fetchModel, parseRepoId } from "../lib/huggingface.js";
-import { PRECISIONS, KV_DTYPES, PRESETS } from "../lib/constants.js";
+import { PRECISIONS, KV_DTYPES, PRESETS, PRESET_GROUPS } from "../lib/constants.js";
 import { NumberField, SelectField } from "./Fields.jsx";
 import { card, control, fieldWrap, fieldLabel, focusRing, hint, legend } from "../lib/ui.js";
 
@@ -12,6 +12,7 @@ const STATUS_COLOR = {
 
 export default function ModelPanel({ model, setModel, precision, setPrecision, kvDtype, setKvDtype }) {
   const [url, setUrl] = useState("");
+  const [preset, setPreset] = useState("");
   const [status, setStatus] = useState({ state: "idle" });
   const [source, setSource] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -34,9 +35,13 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
         layers: m.layers,
         kvHeads: m.kvHeads,
         headDim: m.headDim,
+        hidden: m.hidden,
+        keptParams: m.keptParams,
       });
       setPrecision(m.precision);
       setNotes(m.notes);
+      // The fields no longer describe whatever preset was picked before.
+      setPreset("");
       setSource({ label: repoId, cached, maxLen: m.maxLen });
       setStatus({ state: "ok", msg: cached ? `Loaded ${repoId} from session cache.` : `Loaded ${repoId}.` });
     } catch (e) {
@@ -50,12 +55,32 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
     }
   }
 
-  function applyPreset(p) {
-    setModel({ params: p.params, layers: p.layers, kvHeads: p.kvHeads, headDim: p.headDim });
-    setNotes([]);
+  function applyPreset(id) {
+    setPreset(id);
+    const p = PRESETS.find((m) => m.id === id);
+    if (!p) return;
+
+    setModel({
+      params: p.params,
+      layers: p.layers,
+      kvHeads: p.kvHeads,
+      headDim: p.headDim,
+      hidden: p.hidden,
+      keptParams: p.keptB,
+    });
+    setNotes(p.notes ?? []);
     setSource({ label: p.name, cached: false });
     setStatus({ state: "idle" });
+
+    // Leaving a disabled precision selected would show the very number the
+    // restriction exists to prevent.
+    if (p.precisions && !p.precisions.includes(precision)) setPrecision(p.precisions[0]);
   }
+
+  /** Presets may narrow the precisions they can be trusted at. A repo loaded
+   *  by hand carries no such restriction. */
+  const allowed = PRESETS.find((m) => m.id === preset)?.precisions ?? null;
+  const allows = (id) => !allowed || allowed.includes(id);
 
   const field = (key) => (v) => setModel({ ...model, [key]: v });
 
@@ -86,6 +111,22 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
         </div>
       </label>
 
+      <label className={fieldWrap}>
+        <span className={`${fieldLabel} block`}>Red Hat AI validated model</span>
+        <select className={control} value={preset} onChange={(e) => applyPreset(e.target.value)}>
+          <option value="">Choose a model…</option>
+          {PRESET_GROUPS.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.models.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+
       {status.state !== "idle" && (
         <p className={`mt-2.25 font-mono text-note ${STATUS_COLOR[status.state]}`}>{status.msg}</p>
       )}
@@ -107,24 +148,12 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
         </p>
       ))}
 
-      <div className="mt-3.5 flex flex-wrap gap-1.5">
-        {PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className={`cursor-pointer rounded-full border border-line bg-sunken px-2.5 py-1.25 text-label text-muted hover:border-muted hover:text-ink ${focusRing}`}
-            onClick={() => applyPreset(p)}
-          >
-            {p.name}
-          </button>
-        ))}
-      </div>
-
       <div className="grid grid-cols-2 gap-2.5 min-[521px]:grid-cols-4">
         <NumberField label="Params (B)" value={model.params} onChange={field("params")} step={0.01} />
         <NumberField label="Layers" value={model.layers} onChange={field("layers")} int min={1} />
         <NumberField label="KV heads" value={model.kvHeads} onChange={field("kvHeads")} int min={1} />
         <NumberField label="Head dim" value={model.headDim} onChange={field("headDim")} int min={1} />
+        <NumberField label="Hidden size" value={model.hidden} onChange={field("hidden")} int min={1} />
       </div>
 
       <p className={hint}>
@@ -139,11 +168,17 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
             <button
               key={p.id}
               type="button"
-              className={`min-w-23 flex-1 cursor-pointer rounded-ctl border px-1.5 py-2 font-mono text-note ${focusRing} ${
+              disabled={!allows(p.id)}
+              title={
+                allows(p.id)
+                  ? undefined
+                  : `Not offered for this model — see the note above.`
+              }
+              className={`min-w-23 flex-1 rounded-ctl border px-1.5 py-2 font-mono text-note disabled:cursor-not-allowed disabled:line-through disabled:opacity-40 ${focusRing} ${
                 precision === p.id
                   ? "border-ink bg-ink font-bold text-panel"
                   : "border-line bg-sunken text-muted"
-              }`}
+              } ${allows(p.id) ? "cursor-pointer" : ""}`}
               onClick={() => setPrecision(p.id)}
             >
               {p.name}
@@ -151,6 +186,27 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
           ))}
         </div>
       </label>
+
+      {/* Only shown for quantized weights, because at FP16 it changes nothing:
+          these params are already stored at the same width as everything else. */}
+      {PRECISIONS.find((p) => p.id === precision).bytes < 2 && (
+        <>
+          <NumberField
+            label="Params (B) left at 16-bit"
+            value={model.keptParams}
+            onChange={field("keptParams")}
+            step={0.01}
+            max={model.params}
+          />
+          <p className={hint}>
+            Quantization never covers the whole model. The embedding table and output head always
+            stay at 16 bits, and MoE routers, shared experts and vision towers usually do too — 6%
+            of Llama 4 Scout, 12% of Kimi K2. Presets carry the figure measured from Red Hat's own
+            checkpoint; loading a repo reads it from the file list. Set it to 0 to see the
+            uncorrected figure.
+          </p>
+        </>
+      )}
 
       <SelectField
         label="KV cache precision"

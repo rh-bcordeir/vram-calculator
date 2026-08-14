@@ -62,12 +62,39 @@ export function readConfig(cfg, apiData, repoId) {
     if (m) params = parseFloat(m[1]);
   }
 
+  // How much of the model quantization left alone. The API breaks the tensor
+  // count down by dtype, so on a quantized repo this is measured rather than
+  // guessed — and guessing is not good enough: the 16-bit share is 3% on Llama
+  // 3.3 70B but 6% on Llama 4 Scout (its vision tower) and 12% on Kimi K2.
+  const byDtype = Object.entries(st?.parameters || {});
+  const isQuantized = byDtype.some(([d]) => /F8|F4|I32|U8|I8/i.test(d));
+  const measuredKept = byDtype
+    .filter(([d]) => /BF16|^F16|F32/i.test(d))
+    .reduce((a, [, v]) => a + v, 0) / 1e9;
+  // Fall back to the embedding table and output head, which is the floor: they
+  // are the part no quantization scheme ever touches.
+  const vocab = root.vocab_size ?? cfg.vocab_size;
+  const tied = root.tie_word_embeddings ?? cfg.tie_word_embeddings ?? false;
+  const keptParams =
+    isQuantized && measuredKept
+      ? measuredKept
+      : vocab && root.hidden_size
+        ? ((vocab * root.hidden_size) / 1e9) * (tied ? 1 : 2)
+        : 0;
+
   let precision = "fp16";
   const q = cfg.quantization_config || root.quantization_config;
   if (q) {
     const method = String(q.quant_method || q.format || "").toLowerCase();
-    const bits = q.bits ?? q.w_bit ?? q.weight_bits;
-    if (method.includes("mxfp4") || bits === 4) precision = "int4";
+    // compressed-tensors — what every RedHatAI w4a16 and NVFP4 repo uses —
+    // nests the width per tensor group instead of exposing it at the top
+    // level. Missing it silently reads a 4-bit checkpoint as 8-bit, which
+    // doubles the weight estimate.
+    const grouped = Object.values(q.config_groups || {})
+      .map((g) => g?.weights?.num_bits)
+      .filter((n) => typeof n === "number");
+    const bits = q.bits ?? q.w_bit ?? q.weight_bits ?? (grouped.length ? Math.min(...grouped) : null);
+    if (method.includes("mxfp4") || method.includes("nvfp4") || bits === 4) precision = "int4";
     else if (method.includes("fp8") || method.includes("compressed") || bits === 8) precision = "fp8";
   }
 
@@ -89,6 +116,8 @@ export function readConfig(cfg, apiData, repoId) {
     layers,
     kvHeads,
     headDim: Math.round(headDim),
+    hidden: root.hidden_size ?? Math.round(headDim) * (attnHeads || 1),
+    keptParams: Math.round(keptParams * 100) / 100,
     params: params ? Math.round(params * 100) / 100 : null,
     precision,
     maxLen: root.max_position_embeddings ?? null,

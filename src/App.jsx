@@ -1,16 +1,32 @@
 import React, { useMemo, useState } from "react";
-import { GPUS, PRECISIONS, KV_DTYPES, fmt } from "./lib/constants.js";
+import {
+  GPUS,
+  PRECISIONS,
+  KV_DTYPES,
+  AWS_INSTANCES,
+  AWS_INSTANCE_LIST,
+  TP_SIZES,
+  tpSizesFor,
+  fmt,
+} from "./lib/constants.js";
 import { computeVram, vllmFlags } from "./lib/vram.js";
 import { useTheme } from "./lib/useTheme.js";
 import ModelPanel from "./components/ModelPanel.jsx";
 import MemoryMap from "./components/MemoryMap.jsx";
-import { NumberField, SliderField, SelectField, TableRow } from "./components/Fields.jsx";
-import { caption, card, code, hint, legend } from "./lib/ui.js";
+import { SliderField, SelectField, TableRow } from "./components/Fields.jsx";
+import { caption, card, code, control, fieldLabel, fieldWrap, hint, legend } from "./lib/ui.js";
 
 export default function App() {
   const [theme, toggleTheme] = useTheme();
 
-  const [model, setModel] = useState({ params: 8.17, layers: 40, kvHeads: 8, headDim: 128 });
+  const [model, setModel] = useState({
+    params: 8.17,
+    layers: 40,
+    kvHeads: 8,
+    headDim: 128,
+    hidden: 4096,
+    keptParams: 0.4,
+  });
   const [precision, setPrecision] = useState("fp16");
   const [kvDtype, setKvDtype] = useState("auto");
 
@@ -19,8 +35,11 @@ export default function App() {
 
   const [gpuId, setGpuId] = useState("l40s");
   const [gpuCount, setGpuCount] = useState(1);
+  const [instance, setInstance] = useState("");
   const [utilization, setUtilization] = useState(0.9);
-  const [overheadPct, setOverheadPct] = useState(12);
+  // vLLM V1 chunks prefill by default and caps a forward pass at this many
+  // tokens, which is what bounds activation memory — not max-model-len.
+  const [batchedTokens, setBatchedTokens] = useState(2048);
 
   const gpu = GPUS.find((g) => g.id === gpuId);
   const weightBytes = PRECISIONS.find((p) => p.id === precision).bytes;
@@ -37,15 +56,33 @@ export default function App() {
         kvBytes,
         context,
         concurrency,
+        batchedTokens,
         gpuGib: gpu.gib,
         gpuCount,
         utilization,
-        overheadPct,
       }),
-    [model, weightBytes, kvBytes, context, concurrency, gpu, gpuCount, utilization, overheadPct]
+    [model, weightBytes, kvBytes, context, concurrency, gpu, gpuCount, utilization, batchedTokens]
   );
 
-  const flags = vllmFlags({ context, concurrency, utilization, gpuCount, kvBytes });
+  const flags = vllmFlags({ context, concurrency, utilization, gpuCount, kvBytes, batchedTokens });
+
+  /** A count that does not divide the KV heads is not a tight fit — vLLM exits
+   *  on startup. Memory arithmetic says nothing about it, so it is checked
+   *  separately and allowed to override the verdict. */
+  const tpSizes = tpSizesFor(model.kvHeads);
+  const tpValid = tpSizes.includes(gpuCount);
+
+  /** Picking an instance is a shortcut: it fills the two fields below it, which
+   *  stay editable. Editing either one clears the instance, since the pair no
+   *  longer describes it. */
+  function applyInstance(id) {
+    setInstance(id);
+    const i = AWS_INSTANCE_LIST.find((x) => x.id === id);
+    if (!i) return;
+
+    setGpuId(i.gpu);
+    setGpuCount(i.count);
+  }
 
   return (
     <div className="px-5 pt-6.5 pb-11">
@@ -116,15 +153,72 @@ export default function App() {
 
           <fieldset className={card}>
             <legend className={legend}>Hardware</legend>
+
+            <label className={fieldWrap}>
+              <span className={`${fieldLabel} block`}>AWS EC2 instance</span>
+              <select
+                className={control}
+                value={instance}
+                onChange={(e) => applyInstance(e.target.value)}
+              >
+                <option value="">Choose an instance…</option>
+                {AWS_INSTANCES.map((f) => (
+                  <optgroup key={f.label} label={f.label}>
+                    {f.instances.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.name} · {i.count}× {GPUS.find((g) => g.id === i.gpu).name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+
             <div className="grid grid-cols-[2fr_1fr] gap-3">
               <SelectField
                 label="Accelerator"
                 value={gpuId}
-                onChange={setGpuId}
+                onChange={(v) => {
+                  setGpuId(v);
+                  setInstance("");
+                }}
                 options={GPUS.map((g) => ({ id: g.id, label: `${g.name} · ${fmt(g.gib, 0)} GiB` }))}
               />
-              <NumberField label="Count" value={gpuCount} onChange={setGpuCount} int min={1} max={8} />
+              <label className={fieldWrap}>
+                <span className={`${fieldLabel} block`}>Count</span>
+                <select
+                  className={control}
+                  value={gpuCount}
+                  onChange={(e) => {
+                    setGpuCount(Number(e.target.value));
+                    setInstance("");
+                  }}
+                >
+                  {TP_SIZES.map((n) => (
+                    <option key={n} value={n} disabled={!tpSizes.includes(n)}>
+                      {n}
+                      {tpSizes.includes(n) ? "" : " —"}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
+
+            {!tpValid && (
+              <p className="mt-2.25 border-l-[3px] border-l-bad bg-alarm-bg px-3.5 py-3 text-row leading-[1.55] text-alarm-ink">
+                <b>vLLM will not start.</b> {gpuCount} does not divide the {model.kvHeads} KV heads
+                this model has, so the attention cannot be split evenly across the GPUs. Use{" "}
+                {tpSizes.join(" or ")} instead — the memory below is only reachable at those counts.
+              </p>
+            )}
+
+            <p className={hint}>
+              Count is GPUs in <b>one</b> machine — it becomes{" "}
+              <code className={code}>--tensor-parallel-size</code>. More instances of the same size
+              means more separate servers, which does not make room for a bigger model. Counts are
+              powers of two because that is how multi-GPU nodes are built, and each has to divide
+              the model's KV heads.
+            </p>
             <SliderField
               label="gpu-memory-utilization"
               value={utilization}
@@ -135,21 +229,27 @@ export default function App() {
               places={2}
             />
             <SliderField
-              label="Activation overhead"
-              value={overheadPct}
-              onChange={setOverheadPct}
-              min={5}
-              max={30}
-              step={1}
-              suffix="%"
+              label="Max batched tokens"
+              value={batchedTokens}
+              onChange={setBatchedTokens}
+              min={512}
+              max={16384}
+              step={512}
+              suffix=" tokens"
             />
+            <p className={hint}>
+              Tokens one forward pass may process, and the only thing activation memory scales with
+              — model width aside. vLLM chunks prefill by default and caps this at{" "}
+              <b>2,048</b> however long the context is. Turn chunked prefill off and it becomes the
+              full max-model-len, which is where the old "12% of weights" rule of thumb came from.
+            </p>
           </fieldset>
         </section>
 
         <section className="flex flex-col gap-4">
           <div
             className={`flex items-center gap-4.5 rounded-panel border border-line border-l-[5px] bg-panel px-5 py-4.5 ${
-              result.fits ? "border-l-good" : "border-l-bad"
+              result.fits && tpValid ? "border-l-good" : "border-l-bad"
             }`}
           >
             <div className="flex items-baseline gap-1.25">
@@ -161,15 +261,17 @@ export default function App() {
             <div>
               <p
                 className={`mb-0.75 font-mono text-label font-bold tracking-[0.14em] uppercase ${
-                  result.fits ? "text-good" : "text-bad"
+                  result.fits && tpValid ? "text-good" : "text-bad"
                 }`}
               >
-                {result.fits ? "Fits" : "Does not fit"}
+                {!tpValid ? "Will not start" : result.fits ? "Fits" : "Does not fit"}
               </p>
               <p className="text-row leading-[1.5] text-muted">
-                {result.fits
-                  ? `${fmt(result.slack)} GiB left of the ${fmt(result.usable)} GiB usable on ${gpuCount}× ${gpu.name}.`
-                  : `${fmt(-result.slack)} GiB short. ${gpuCount}× ${gpu.name} gives ${fmt(result.usable)} GiB usable.`}
+                {!tpValid
+                  ? `Tensor parallelism cannot split ${model.kvHeads} KV heads across ${gpuCount} GPUs, whatever the memory says.`
+                  : result.fits
+                    ? `${fmt(result.slack)} GiB left of the ${fmt(result.usable)} GiB usable on ${gpuCount}× ${gpu.name}.`
+                    : `${fmt(-result.slack)} GiB short. ${gpuCount}× ${gpu.name} gives ${fmt(result.usable)} GiB usable.`}
               </p>
             </div>
           </div>
