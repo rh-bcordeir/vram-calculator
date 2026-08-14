@@ -1,66 +1,64 @@
 @import "tailwindcss";
 
 /* --------------------------------------------------------------
-   Themes. The attribute is set on <html> by the inline script in
-   index.html so there is no flash of the wrong theme on first paint.
-   Because the design tokens below are declared with `@theme inline`,
-   every Tailwind colour utility resolves through these variables and
-   follows the swap without needing a `dark:` variant anywhere.
+   Red Hat Design System palette. Token names are unchanged, so
+   every component keeps working — only the values are Red Hat's.
+   Values from @rhds/tokens (red-hat-design-tokens).
    -------------------------------------------------------------- */
-
-:root[data-theme="light"] {
-  --bg: #e9edf0;
-  --panel: #ffffff;
-  --sunken: #fbfcfd;
-  --border: #c9d2d8;
-  --ink: #101820;
-  --muted: #5a6c78;
-  --c-weights: #1f4e5f;
-  --c-kv: #2e9ca8;
-  --c-over: #8c6bae;
-  --c-free: #d6dee3;
-  --bad: #cc0000;
-  --good: #226b44;
-  --note-bg: #fbf4e6;
-  --note-ink: #6b4e14;
-  --note-line: #c08a2e;
-  --alarm-bg: #fdecec;
-  --alarm-ink: #7a1414;
-  --code-bg: #0f1a21;
-  --code-ink: #dce6ec;
-  --code-label: #7e93a0;
-  --hatch-a: #f2f5f7;
-  --hatch-b: #e8edf0;
-}
 
 :root[data-theme="dark"] {
-  --bg: #0b1216;
-  --panel: #141e25;
-  --sunken: #0f1920;
-  --border: #283945;
-  --ink: #e2eaef;
-  --muted: #8ca2af;
-  --c-weights: #2e7f97;
-  --c-kv: #4fc3d0;
-  --c-over: #a98bc9;
-  --c-free: #22323c;
-  --bad: #ff5c4d;
-  --good: #4fbf83;
+  --bg: #151515;        /* gray-95  */
+  --panel: #1f1f1f;     /* gray-90  */
+  --sunken: #292929;    /* gray-80  */
+  --border: #383838;    /* gray-70  */
+  --ink: #f2f2f2;       /* gray-10  */
+  --muted: #a3a3a3;     /* gray-40  */
+  --accent: #0066cc;    /* blue-50, interactive */
+  --brand: #ee0000;     /* red-50, accent only  */
+  --c-weights: #4394e5; /* blue-40  */
+  --c-kv: #37a3a3;      /* teal-50  */
+  --c-over: #876fd4;    /* purple-40 */
+  --c-free: #292929;
+  --bad: #f4784a;       /* red-orange-40 — danger is never brand red */
+  --good: #87bb62;      /* green-40  */
   --note-bg: #241e10;
-  --note-ink: #e0c689;
-  --note-line: #b98c2e;
-  --alarm-bg: #2a1414;
-  --alarm-ink: #ffa79e;
-  --code-bg: #060c10;
-  --code-ink: #cfdde6;
-  --code-label: #63808f;
-  --hatch-a: #121d24;
-  --hatch-b: #0e1820;
+  --note-ink: #ffcc17;  /* yellow-30 */
+  --note-line: #dca614; /* yellow-40 */
+  --alarm-bg: #2a1410;
+  --alarm-ink: #f2f2f2;
+  --code-bg: #0b0b0b;
+  --code-ink: #e0e0e0;
+  --code-label: #8c8c8c;
+  --hatch-a: #1f1f1f;
+  --hatch-b: #1a1a1a;
 }
 
-/* --------------------------------------------------------------
-   Design tokens
-   -------------------------------------------------------------- */
+:root[data-theme="light"] {
+  --bg: #f2f2f2;        /* gray-10  */
+  --panel: #ffffff;
+  --sunken: #f2f2f2;
+  --border: #c7c7c7;    /* gray-30  */
+  --ink: #151515;       /* gray-95  */
+  --muted: #4d4d4d;     /* gray-60  */
+  --accent: #0066cc;
+  --brand: #ee0000;
+  --c-weights: #004d99; /* blue-60  */
+  --c-kv: #147878;      /* teal-60  */
+  --c-over: #5e40be;    /* purple-50 */
+  --c-free: #e0e0e0;
+  --bad: #b1380b;       /* red-orange-60 */
+  --good: #3d7317;      /* green-60  */
+  --note-bg: #fff4cc;
+  --note-ink: #73480b;
+  --note-line: #dca614;
+  --alarm-bg: #ffe3d9;
+  --alarm-ink: #151515;
+  --code-bg: #151515;
+  --code-ink: #e0e0e0;
+  --code-label: #8c8c8c;
+  --hatch-a: #f2f2f2;
+  --hatch-b: #e8e8e8;
+}
 
 @theme inline {
   --color-bg: var(--bg);
@@ -69,6 +67,8 @@
   --color-line: var(--border);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-brand: var(--brand);
   --color-weights: var(--c-weights);
   --color-kv: var(--c-kv);
   --color-over: var(--c-over);
@@ -88,39 +88,26 @@
   --font-display: "Red Hat Display", sans-serif;
   --font-mono: "Red Hat Mono", monospace;
 
-  /* Named for their job rather than their size, so the handful of
-     one-off sizes in the old stylesheet collapse into one scale. */
-  --text-mark: 0.59375rem; /* 9.5px — memory-map mark labels */
-  --text-label: 0.6875rem; /* 11px  — uppercase mono labels */
-  --text-note: 0.75rem; /* 12px  — hints, notes, captions */
-  --text-row: 0.8125rem; /* 13px  — table rows, buttons, body copy */
-  --text-field: 0.875rem; /* 14px  — inputs, lede */
-  --text-hero: 2.75rem; /* 44px  — the verdict number */
+  --text-mark: 0.625rem;   /* 10px — memory-map mark labels */
+  --text-label: 0.6875rem; /* 11px — uppercase mono labels  */
+  --text-note: 0.75rem;    /* 12px — hints, notes, captions */
+  --text-row: 0.8125rem;   /* 13px — table rows, body copy  */
+  --text-field: 0.875rem;  /* 14px — inputs, lede           */
+  --text-hero: 2.75rem;    /* 44px — the verdict number     */
 
+  /* RHDS corners are nearly sharp: 3px everywhere. */
   --radius-panel: 3px;
-  --radius-ctl: 2px;
+  --radius-ctl: 3px;
 }
 
-/* --------------------------------------------------------------
-   Base
-   -------------------------------------------------------------- */
-
 @layer base {
-  /* Every size above is in rem, so raising the root size scales the
-     whole interface up on roomier screens. */
   html {
     font-size: 16px;
   }
 
   @media (min-width: 1280px) {
     html {
-      font-size: 17.5px;
-    }
-  }
-
-  @media (min-width: 1700px) {
-    html {
-      font-size: 19px;
+      font-size: 17px;
     }
   }
 
@@ -132,18 +119,13 @@
 
   body {
     @apply bg-bg text-ink font-sans antialiased;
-    transition: background 0.2s ease, color 0.2s ease;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    body {
-      transition: none;
-    }
+  input[type="range"] {
+    accent-color: var(--accent);
   }
 }
 
-/* The memory-map track shows through as hatching wherever no segment
-   reaches, which no utility expresses. */
 @utility hatched {
   background: repeating-linear-gradient(
     45deg,

@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>How much VRAM — LLM GPU sizing for vLLM</title>
+    <title>VRAM calculator — Red Hat AI</title>
     <meta
       name="description"
       content="Estimate the GPU memory an LLM needs on vLLM: weights, KV cache and overhead, checked against real accelerator capacity."
     />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark light" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,15 +19,13 @@
 
     <script>
       // Set the theme before first paint so the page never flashes the wrong one.
+      // Dark is the default for this console.
       (function () {
         try {
           var saved = localStorage.getItem("vram-theme");
-          var theme =
-            saved ||
-            (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-          document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.setAttribute("data-theme", saved || "dark");
         } catch (e) {
-          document.documentElement.setAttribute("data-theme", "light");
+          document.documentElement.setAttribute("data-theme", "dark");
         }
       })();
     </script>
