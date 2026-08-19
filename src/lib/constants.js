@@ -103,10 +103,18 @@ export const AWS_INSTANCE_LIST = AWS_INSTANCES.flatMap((f) => f.instances);
 export const TP_SIZES = [1, 2, 4, 8];
 
 /**
- * vLLM splits the KV heads evenly across the GPUs and refuses to start when the
- * division is not exact, so a count is only usable if it divides kvHeads.
+ * vLLM splits the KV heads across the GPUs while there are enough to go round,
+ * and replicates the cache when there are not: eight ranks serving a two-KV-head
+ * model each keep a full copy. Either way the split has to come out even, so a
+ * count is usable when it divides kvHeads *or* kvHeads divides it. Red Hat's
+ * support matrix agrees — Qwen3.5 122B has 2 KV heads and is published on
+ * 8XH100, while Phi-4's 10 land it on 1 and 2 GPUs only.
+ *
+ * Latent attention has a single shared head, so every count is legal (and every
+ * count replicates); pass `kvLatent` to say so.
  */
-export const tpSizesFor = (kvHeads) => TP_SIZES.filter((n) => kvHeads % n === 0);
+export const tpSizesFor = (kvHeads, kvLatent = null) =>
+  kvLatent ? TP_SIZES : TP_SIZES.filter((n) => kvHeads % n === 0 || n % kvHeads === 0);
 
 /**
  * Preset footnotes. These mirror the warnings huggingface.js raises when it
@@ -114,13 +122,40 @@ export const tpSizesFor = (kvHeads) => TP_SIZES.filter((n) => kvHeads % n === 0)
  */
 const MOE = "Mixture of Experts: every expert weight counts, not just the active ones.";
 
-const MLA =
-  "Latent attention (MLA): the real KV cache is far smaller than this estimate.";
+/** Latent attention: one compressed vector per layer per token, replicated. */
+const mla = (latent) =>
+  `Latent attention (MLA): each layer caches one ${latent}-element latent vector per token ` +
+  `instead of a key and a value tensor per head — two orders of magnitude less. vLLM cannot ` +
+  `shard a single head, so every GPU keeps its own copy; the KV figure below already ` +
+  `multiplies by the count.`;
 
 /** Only some layers of a hybrid model hold a KV cache. */
 const hybrid = (attn, total, rest) =>
-  `Hybrid architecture: only ${attn} of the ${total} layers use attention — the rest are ${rest}. ` +
-  `Set Layers to ${attn} for a realistic KV figure.`;
+  `Hybrid architecture: only ${attn} of the ${total} layers use attention — the rest are ${rest}, ` +
+  `whose recurrent state is small and fixed. Attention layers is set to ${attn}, and the KV ` +
+  `figure below counts only those.`;
+
+const FP8_NATIVE =
+  "Ships as FP8 only — there is no 16-bit release to size, and the published " +
+  "minimum is the FP8 one.";
+
+const MXFP4_NATIVE =
+  "Ships as MXFP4 only: the MoE weights are 4-bit in the original release. " +
+  "INT4 is the setting that matches it — the other two are not checkpoints " +
+  "anyone can download.";
+
+const F32_KEPT =
+  "Published in float32, so the part quantization leaves alone costs 4 bytes a " +
+  "parameter rather than 2. Without that the estimate lands 13% under Red Hat's " +
+  "published minimum.";
+
+const CPU_ONLY =
+  "Red Hat validates this one for x86_64 CPU inference, not GPU serving, so " +
+  "there is no published vRAM minimum to check the figure against.";
+
+const NO_GPU_MINIMUM =
+  "Validated for IBM Spyre accelerators rather than the GPU support matrix, so " +
+  "Red Hat publishes no vRAM minimum for it.";
 
 const NO_NVFP4 =
   "Red Hat ships this one in NVFP4 too, which is not offered here: the format " +
@@ -130,7 +165,8 @@ const NO_NVFP4 =
 
 const swaWindow = (tokens, swa, total) =>
   `Sliding-window attention: ${swa} of the ${total} layers are capped at ${tokens.toLocaleString("en-US")} tokens, ` +
-  `so past that context only the remaining ${total - swa} layers keep growing.`;
+  `so past that context only the remaining ${total - swa} layers keep growing. The KV figure ` +
+  `below already accounts for it.`;
 
 /**
  * The Red Hat AI 3 validated models, grouped by family.
@@ -149,9 +185,11 @@ const swaWindow = (tokens, swa, total) =>
  * — taken from the dtype breakdown the Hugging Face API publishes for Red Hat's
  * own quantized checkpoint, so it is measured, not derived. It is nowhere near
  * just the embedding table on MoE and multimodal models: 6% of Llama 4 Scout
- * (its vision tower), 12% of Kimi K2. Two entries could not be measured because
- * their repos are gated (TinyLlama, Mistral Large 3) and keep the embedding
- * estimate, which is a floor.
+ * (its vision tower), 12% of Kimi K2. TinyLlama could not be measured because
+ * its repo is gated and keeps the embedding estimate, which is a floor;
+ * Mistral Large 3 publishes no dtype breakdown, so its 5.4B is summed from the
+ * `ignore` list in params.json (embeddings + lm_head 1.88B, the 48-layer vision
+ * encoder ~2.5B, the MLA q_a/kv_a projections ~0.9B, the MoE gates ~0.06B).
  *
  * `hidden` is hidden_size, which sets how much activation memory a token in
  * flight costs.
@@ -175,16 +213,18 @@ export const PRESET_GROUPS = [
   {
     label: "Granite",
     models: [
-      { id: "granite-31-8b", name: "Granite 3.1 8B Instruct", params: 8.17, layers: 40, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 0.4 },
-      { id: "granite-32-2b", name: "Granite 3.2 2B Instruct", params: 2.53, layers: 40, kvHeads: 8, headDim: 64, hidden: 2048, keptB: 0.2 },
-      { id: "granite-33-8b", name: "Granite 3.3 8B Instruct", params: 8.17, layers: 40, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 0.4 },
+      { id: "granite-31-8b", name: "Granite 3.1 8B Instruct", params: 8.17, layers: 40, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 0.4, precisions: ["fp16", "fp8", "int4"] },
+      { id: "granite-32-2b", name: "Granite 3.2 2B Instruct", params: 2.53, layers: 40, kvHeads: 8, headDim: 64, hidden: 2048, keptB: 0.2, precisions: ["fp16"], notes: [CPU_ONLY] },
+      { id: "granite-33-8b", name: "Granite 3.3 8B Instruct", params: 8.17, layers: 40, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 0.2, precisions: ["fp16", "fp8"], notes: [NO_GPU_MINIMUM] },
       {
         id: "granite-40-h-tiny",
         name: "Granite 4.0 H Tiny",
         params: 6.94,
         layers: 40,
+        kvLayers: 4,
         kvHeads: 4,
         headDim: 128, hidden: 1536, keptB: 0.17,
+        precisions: ["fp16", "fp8"],
         notes: [MOE, hybrid(4, 40, "Mamba")],
       },
       {
@@ -192,20 +232,22 @@ export const PRESET_GROUPS = [
         name: "Granite 4.0 H Small",
         params: 32.21,
         layers: 40,
+        kvLayers: 4,
         kvHeads: 8,
         headDim: 128, hidden: 4096, keptB: 0.44,
+        precisions: ["fp16", "fp8"],
         notes: [MOE, hybrid(4, 40, "Mamba")],
       },
-      { id: "granite-41-8b", name: "Granite 4.1 8B", params: 8.79, layers: 40, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 0.44 },
+      { id: "granite-41-8b", name: "Granite 4.1 8B", params: 8.79, layers: 40, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 0.82, precisions: ["fp16", "fp8"], notes: [NO_GPU_MINIMUM] },
     ],
   },
   {
     label: "Llama",
     models: [
-      { id: "tinyllama-11b", name: "TinyLlama 1.1B Chat", params: 1.1, layers: 22, kvHeads: 4, headDim: 64, hidden: 2048, keptB: 0.13 },
-      { id: "llama-32-1b", name: "Llama 3.2 1B Instruct", params: 1.24, layers: 16, kvHeads: 8, headDim: 64, hidden: 2048, keptB: 0.53 },
-      { id: "llama-31-8b", name: "Llama 3.1 8B Instruct", params: 8.03, layers: 32, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 1.05 },
-      { id: "llama-33-70b", name: "Llama 3.3 70B Instruct", params: 70.55, layers: 80, kvHeads: 8, headDim: 128, hidden: 8192, keptB: 2.11 },
+      { id: "tinyllama-11b", name: "TinyLlama 1.1B Chat", params: 1.1, layers: 22, kvHeads: 4, headDim: 64, hidden: 2048, keptB: 0.13, precisions: ["fp16"], notes: [CPU_ONLY] },
+      { id: "llama-32-1b", name: "Llama 3.2 1B Instruct", params: 1.24, layers: 16, kvHeads: 8, headDim: 64, hidden: 2048, keptB: 0.53, precisions: ["fp16"], notes: [CPU_ONLY] },
+      { id: "llama-31-8b", name: "Llama 3.1 8B Instruct", params: 8.03, layers: 32, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 1.05, precisions: ["fp16", "fp8", "int4"] },
+      { id: "llama-33-70b", name: "Llama 3.3 70B Instruct", params: 70.55, layers: 80, kvHeads: 8, headDim: 128, hidden: 8192, keptB: 2.11, precisions: ["fp16", "fp8", "int4"] },
       {
         id: "llama-31-nemotron-70b",
         name: "Llama 3.1 Nemotron 70B Instruct",
@@ -213,6 +255,7 @@ export const PRESET_GROUPS = [
         layers: 80,
         kvHeads: 8,
         headDim: 128, hidden: 8192, keptB: 2.11,
+        precisions: ["fp16", "fp8"],
       },
       {
         id: "llama-4-scout-17b",
@@ -220,7 +263,8 @@ export const PRESET_GROUPS = [
         params: 108.64,
         layers: 48,
         kvHeads: 8,
-        headDim: 128, hidden: 5120, keptB: 5.98,
+        headDim: 128, hidden: 5120, keptB: { fp8: 5.98, int4: 6.77 },
+        precisions: ["fp16", "fp8", "int4"],
         notes: [MOE],
       },
       {
@@ -230,6 +274,7 @@ export const PRESET_GROUPS = [
         layers: 48,
         kvHeads: 8,
         headDim: 128, hidden: 5120, keptB: 15.1,
+        precisions: ["fp16", "fp8"],
         notes: [MOE],
       },
     ],
@@ -237,44 +282,52 @@ export const PRESET_GROUPS = [
   {
     label: "Mistral",
     models: [
-      { id: "ministral-3-3b", name: "Ministral 3 3B Instruct 2512", params: 3.85, layers: 26, kvHeads: 8, headDim: 128, hidden: 3072, keptB: 0.82 },
-      { id: "ministral-3-14b", name: "Ministral 3 14B Instruct 2512", params: 13.95, layers: 40, kvHeads: 8, headDim: 128, hidden: 5120, keptB: 3.88 },
-      { id: "mistral-small-24b", name: "Mistral Small 24B Instruct 2501", params: 23.57, layers: 40, kvHeads: 8, headDim: 128, hidden: 5120, keptB: 1.35 },
-      { id: "mistral-small-31-24b", name: "Mistral Small 3.1 24B Instruct 2503", params: 24.01, layers: 40, kvHeads: 8, headDim: 128, hidden: 5120, keptB: 1.78 },
-      { id: "devstral-small-2-24b", name: "Devstral Small 2 24B Instruct 2512", params: 24.01, layers: 40, kvHeads: 8, headDim: 128, hidden: 5120, keptB: 1.35 },
-      { id: "mixtral-8x7b", name: "Mixtral 8x7B Instruct v0.1", params: 46.7, layers: 32, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 0.26, notes: [MOE] },
+      { id: "ministral-3-3b", name: "Ministral 3 3B Instruct 2512", params: 3.85, layers: 26, kvHeads: 8, headDim: 128, hidden: 3072, keptB: 0.82, precisions: ["fp8"], notes: [FP8_NATIVE] },
+      { id: "ministral-3-14b", name: "Ministral 3 14B Instruct 2512", params: 13.95, layers: 40, kvHeads: 8, headDim: 128, hidden: 5120, keptB: 1.78, precisions: ["fp8"], notes: [FP8_NATIVE] },
+      { id: "mistral-small-24b", name: "Mistral Small 24B Instruct 2501", params: 23.57, layers: 40, kvHeads: 8, headDim: 128, hidden: 5120, keptB: { fp8: 1.35, int4: 1.34 }, precisions: ["fp16", "fp8", "int4"] },
+      { id: "mistral-small-31-24b", name: "Mistral Small 3.1 24B Instruct 2503", params: 24.01, layers: 40, kvHeads: 8, headDim: 128, hidden: 5120, keptB: 1.78, precisions: ["fp16", "fp8", "int4"] },
+      { id: "devstral-small-2-24b", name: "Devstral Small 2 24B Instruct 2512", params: 24.01, layers: 40, kvHeads: 8, headDim: 128, hidden: 5120, keptB: 1.78, precisions: ["fp8"], notes: [FP8_NATIVE] },
+      { id: "mixtral-8x7b", name: "Mixtral 8x7B Instruct v0.1", params: 46.7, layers: 32, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 0.26, precisions: ["fp16"], notes: [MOE] },
       {
         id: "mistral-large-3-675b",
         name: "Mistral Large 3 675B Instruct 2512",
         params: 675,
         layers: 61,
         kvHeads: 128,
-        headDim: 192, hidden: 7168, keptB: 1.88,
-        precisions: ["fp16", "fp8"],
-        notes: [MOE, MLA, NO_NVFP4],
+        headDim: 192,
+        kvLatent: 576,
+        hidden: 7168, keptB: 5.4,
+        // Mistral ships this one FP8 only — params.json carries an FP8_BLOCK
+        // compressed-tensors config and there is no 16-bit release, so FP16 is
+        // not a configuration anyone can run. Red Hat's 784 GB minimum on
+        // 8XH200 is the FP8 baseline.
+        precisions: ["fp8"],
+        notes: [MOE, mla(576), FP8_NATIVE, NO_NVFP4],
       },
     ],
   },
   {
     label: "Phi",
     models: [
-      { id: "phi-4-mini", name: "Phi-4 Mini Instruct", params: 3.84, layers: 32, kvHeads: 8, headDim: 128, hidden: 3072, keptB: 1.23 },
-      { id: "phi-4", name: "Phi-4 14B", params: 14.66, layers: 40, kvHeads: 10, headDim: 128, hidden: 5120, keptB: 1.03 },
-      { id: "phi-4-reasoning", name: "Phi-4 Reasoning", params: 14.66, layers: 40, kvHeads: 10, headDim: 128, hidden: 5120, keptB: 1.03 },
+      { id: "phi-4-mini", name: "Phi-4 Mini Instruct", params: 3.84, layers: 32, kvHeads: 8, headDim: 128, hidden: 3072, keptB: 1.23, precisions: ["fp8"] },
+      { id: "phi-4", name: "Phi-4 14B", params: 14.66, layers: 40, kvHeads: 10, headDim: 128, hidden: 5120, keptB: { fp8: 1.03, int4: 1.13 }, precisions: ["fp16", "fp8", "int4"] },
+      { id: "phi-4-reasoning", name: "Phi-4 Reasoning", params: 14.66, layers: 40, kvHeads: 10, headDim: 128, hidden: 5120, keptB: 1.03, precisions: ["fp16", "fp8"] },
     ],
   },
   {
     label: "Qwen",
     models: [
-      { id: "qwen25-7b", name: "Qwen2.5 7B Instruct", params: 7.62, layers: 28, kvHeads: 4, headDim: 128, hidden: 3584, keptB: 1.09 },
-      { id: "qwen3-8b", name: "Qwen3 8B", params: 8.19, layers: 36, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 1.25 },
+      { id: "qwen25-7b", name: "Qwen2.5 7B Instruct", params: 7.62, layers: 28, kvHeads: 4, headDim: 128, hidden: 3584, keptB: 1.09, precisions: ["fp16", "fp8", "int4"] },
+      { id: "qwen3-8b", name: "Qwen3 8B", params: 8.19, layers: 36, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 1.25, precisions: ["fp8"] },
       {
         id: "qwen35-35b-a3b",
         name: "Qwen3.5 35B A3B",
         params: 35.95,
         layers: 40,
+        kvLayers: 10,
         kvHeads: 2,
         headDim: 256, hidden: 2048, keptB: 2.53,
+        precisions: ["fp8"],
         notes: [MOE, hybrid(10, 40, "linear attention")],
       },
       {
@@ -282,8 +335,10 @@ export const PRESET_GROUPS = [
         name: "Qwen3 Next 80B A3B Instruct",
         params: 81.32,
         layers: 48,
+        kvLayers: 12,
         kvHeads: 2,
-        headDim: 256, hidden: 2048, keptB: 1.96,
+        headDim: 256, hidden: 2048, keptB: { fp8: 0.69, int4: 2.49 },
+        precisions: ["fp8", "int4"],
         notes: [MOE, hybrid(12, 48, "gated DeltaNet")],
       },
       {
@@ -291,8 +346,10 @@ export const PRESET_GROUPS = [
         name: "Qwen3.5 122B A10B",
         params: 125.09,
         layers: 48,
+        kvLayers: 12,
         kvHeads: 2,
         headDim: 256, hidden: 3072, keptB: 5.27,
+        precisions: ["fp8"],
         notes: [MOE, hybrid(12, 48, "linear attention")],
       },
       {
@@ -300,8 +357,10 @@ export const PRESET_GROUPS = [
         name: "Qwen3.5 397B A17B",
         params: 403.4,
         layers: 60,
+        kvLayers: 15,
         kvHeads: 2,
         headDim: 256, hidden: 4096, keptB: 14.71,
+        precisions: ["fp8"],
         notes: [MOE, hybrid(15, 60, "linear attention")],
       },
       {
@@ -311,6 +370,7 @@ export const PRESET_GROUPS = [
         layers: 62,
         kvHeads: 8,
         headDim: 128, hidden: 6144, keptB: 1.96,
+        precisions: ["fp8"],
         notes: [MOE],
       },
     ],
@@ -323,8 +383,10 @@ export const PRESET_GROUPS = [
         name: "Nemotron Nano 9B v2",
         params: 8.89,
         layers: 56,
+        kvLayers: 4,
         kvHeads: 8,
-        headDim: 128, hidden: 4480, keptB: 1.18,
+        headDim: 128, hidden: 4480, keptB: { fp8: 1.18, int4: 1.3 },
+        precisions: ["fp8", "int4"],
         notes: [hybrid(4, 56, "Mamba")],
       },
       {
@@ -332,8 +394,10 @@ export const PRESET_GROUPS = [
         name: "Nemotron 3 Nano 30B A3B",
         params: 31.58,
         layers: 52,
+        kvLayers: 6,
         kvHeads: 2,
         headDim: 128, hidden: 2688, keptB: 1.09,
+        precisions: ["fp8"],
         notes: [MOE, hybrid(6, 52, "Mamba")],
       },
       {
@@ -341,6 +405,7 @@ export const PRESET_GROUPS = [
         name: "Nemotron 3 Super 120B A12B",
         params: 123.61,
         layers: 88,
+        kvLayers: 8,
         kvHeads: 2,
         headDim: 128, hidden: 4096, keptB: 4.72,
         precisions: ["fp16", "fp8"],
@@ -349,9 +414,36 @@ export const PRESET_GROUPS = [
     ],
   },
   {
+    label: "Sarvam",
+    models: [
+      {
+        id: "sarvam-30b",
+        name: "Sarvam 30B",
+        params: 32.15,
+        layers: 19,
+        kvHeads: 4,
+        headDim: 64, hidden: 4096, keptB: 2.17, keptBytes: 4,
+        precisions: ["fp8"],
+        notes: [MOE, F32_KEPT],
+      },
+      {
+        id: "sarvam-105b",
+        name: "Sarvam 105B",
+        params: 106.03,
+        layers: 32,
+        kvHeads: 64,
+        headDim: 576,
+        kvLatent: 576,
+        hidden: 4096, keptB: 2.2, keptBytes: 4,
+        precisions: ["fp8"],
+        notes: [MOE, mla(576), F32_KEPT],
+      },
+    ],
+  },
+  {
     label: "Other",
     models: [
-      { id: "smollm3-3b", name: "SmolLM3 3B", params: 3.08, layers: 36, kvHeads: 4, headDim: 128, hidden: 2048, keptB: 0.26 },
+      { id: "smollm3-3b", name: "SmolLM3 3B", params: 3.08, layers: 36, kvHeads: 4, headDim: 128, hidden: 2048, keptB: 0.26, precisions: ["fp8"] },
       {
         id: "gemma-3n-e4b",
         name: "Gemma 3n E4B IT",
@@ -359,9 +451,12 @@ export const PRESET_GROUPS = [
         layers: 35,
         kvHeads: 2,
         headDim: 256, hidden: 2048, keptB: 3.96,
+        swaLayers: 28,
+        swaWindow: 512,
+        precisions: ["fp8"],
         notes: [swaWindow(512, 28, 35)],
       },
-      { id: "apertus-8b", name: "Apertus 8B Instruct 2509", params: 8.05, layers: 32, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 1.08 },
+      { id: "apertus-8b", name: "Apertus 8B Instruct 2509", params: 8.05, layers: 32, kvHeads: 8, headDim: 128, hidden: 4096, keptB: 1.08, precisions: ["fp8"] },
       {
         id: "gpt-oss-20b",
         name: "gpt-oss 20B",
@@ -369,7 +464,10 @@ export const PRESET_GROUPS = [
         layers: 24,
         kvHeads: 8,
         headDim: 64, hidden: 2880, keptB: 1.8,
-        notes: [MOE, swaWindow(128, 12, 24)],
+        swaLayers: 12,
+        swaWindow: 128,
+        precisions: ["int4"],
+        notes: [MOE, MXFP4_NATIVE, swaWindow(128, 12, 24)],
       },
       {
         id: "gpt-oss-120b",
@@ -378,7 +476,10 @@ export const PRESET_GROUPS = [
         layers: 36,
         kvHeads: 8,
         headDim: 64, hidden: 2880, keptB: 2.17,
-        notes: [MOE, swaWindow(128, 18, 36)],
+        swaLayers: 18,
+        swaWindow: 128,
+        precisions: ["int4"],
+        notes: [MOE, MXFP4_NATIVE, swaWindow(128, 18, 36)],
       },
       {
         id: "minimax-m25",
@@ -387,7 +488,8 @@ export const PRESET_GROUPS = [
         layers: 62,
         kvHeads: 8,
         headDim: 128, hidden: 3072, keptB: 1.29,
-        notes: [MOE],
+        precisions: ["fp8"],
+        notes: [MOE, FP8_NATIVE],
       },
       {
         id: "deepseek-r1-0528",
@@ -395,8 +497,11 @@ export const PRESET_GROUPS = [
         params: 684.53,
         layers: 61,
         kvHeads: 128,
-        headDim: 56, hidden: 7168, keptB: 22.23,
-        notes: [MOE, MLA],
+        headDim: 192,
+        kvLatent: 576,
+        hidden: 7168, keptB: 22.23,
+        precisions: ["int4"],
+        notes: [MOE, mla(576)],
       },
       {
         id: "kimi-k2",
@@ -404,8 +509,11 @@ export const PRESET_GROUPS = [
         params: 1026.41,
         layers: 61,
         kvHeads: 64,
-        headDim: 112, hidden: 7168, keptB: 19.65,
-        notes: [MOE, MLA],
+        headDim: 192,
+        kvLatent: 576,
+        hidden: 7168, keptB: 19.65,
+        precisions: ["int4"],
+        notes: [MOE, mla(576)],
       },
     ],
   },
@@ -413,6 +521,17 @@ export const PRESET_GROUPS = [
 
 /** Flat lookup, for resolving the <select> value back to a model. */
 export const PRESETS = PRESET_GROUPS.flatMap((g) => g.models);
+
+/**
+ * How much of a preset stays at 16 bits, for the precision in hand.
+ *
+ * Red Hat quantizes each checkpoint on its own terms, so the untouched share is
+ * not always the same across variants — Qwen3 Next keeps 0.69B at FP8 and 2.49B
+ * at w4a16, because the INT4 recipe leaves the shared experts alone. Presets
+ * whose variants agree carry a single number.
+ */
+export const keptFor = (preset, precision) =>
+  typeof preset?.keptB === "object" ? (preset.keptB[precision] ?? preset.keptB.fp8) : preset?.keptB;
 
 export const fmt = (n, d = 1) =>
   Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });

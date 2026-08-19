@@ -28,20 +28,44 @@ npm run preview  # serve the production build locally
 ## How the numbers are produced
 
 ```
-weights      = params × bytes_per_param
-kv_per_token = 2 × layers × kv_heads × head_dim × kv_bytes
-kv_total     = kv_per_token × context × concurrency
-overhead     = 0.8 GiB per device + activation_pct × (weights + kv)
-usable        = gpu_capacity × gpu_memory_utilization
+weights      = (params − kept) × bytes_per_param + kept × kept_bytes
+kv_per_layer = elems × replicas × kv_bytes          per token
+kv_total     = kv_per_layer × tokens_cached × concurrency
+overhead     = 0.59 GiB per device + batched_tokens × hidden × 13.35 × 2
+usable       = gpu_capacity × gpu_count × gpu_memory_utilization
 ```
 
-The factor of 2 in the KV term covers the key and the value tensor. `kv_heads` means
-`num_key_value_heads`, not `num_attention_heads` — grouped-query attention models cache far
-less than the query head count suggests, and mixing these up inflates the estimate several
-times over.
+- **`kept`** is the share of the model quantization leaves alone — embeddings, output head,
+  MoE routers, vision towers. It is 3% of Llama 3.3 70B but 12% of Kimi K2, so ignoring it
+  understates a quantized MoE checkpoint badly. `kept_bytes` is its width: 2 nearly always,
+  4 on the float32 releases.
+- **`elems`** is `2 × kv_heads × head_dim` for standard attention — the 2 covers the key and
+  the value tensor, and `kv_heads` means `num_key_value_heads`, not `num_attention_heads`.
+  Latent-attention models cache one compressed vector instead, two orders of magnitude less.
+- **`replicas`** is how many copies tensor parallelism ends up holding. vLLM shards the KV
+  heads across the ranks while there are enough to go round and replicates below that, so a
+  2-KV-head model on 8 GPUs keeps 4 copies and a single-head latent cache keeps 8.
+- **`tokens_cached`** counts only the layers that hold a KV cache — 4 of Granite 4.0 H's 40,
+  the rest being Mamba — and stops charging windowed layers once the context passes their
+  window.
+- **Overhead** is a line fitted through two measurements on a live cluster; activation memory
+  tracks tokens in flight and model width, not weight count. `CALIBRATION.md` shows the work.
 
 Accelerator capacities are the values the driver reports, not the marketing number: an
 "80GB" A100 has about 79.2 GiB.
+
+## Checking it against Red Hat's published minimums
+
+```bash
+npm run validate              # summary, plus any row outside ±10%
+npm run validate -- --verbose # all 61 rows
+```
+
+Every model in the preset list is one Red Hat validates, and 61 of those rows publish a
+minimum vRAM figure and a list of supported GPU configurations.
+`scripts/redhat-minimums.json` holds them; the script checks both the size and the shape —
+that each published machine is one the app would let you pick, and that it holds the weights.
+All 61 land within 10% of the published figure, 58 within 5%, with no shape failures.
 
 ## Hugging Face lookup
 
@@ -49,8 +73,10 @@ Nothing is fetched on page load. When you press **Load**, two requests go out:
 
 | Request | Supplies |
 | --- | --- |
-| `/{repo}/resolve/main/config.json` | layers, KV heads, head dim, quantization, trained context |
-| `/api/models/{repo}` | parameter count, from the `safetensors` metadata |
+| `/{repo}/resolve/main/config.json` | layers, KV heads, head dim, latent rank, layer mix, quantization, trained context |
+| `/api/models/{repo}` | parameter count and the 16-bit share, from the `safetensors` metadata |
+
+Mistral's own repos ship `params.json` instead of `config.json`; that layout is read too.
 
 Each repo is read at most once per session and kept in an in-memory cache.
 
@@ -59,7 +85,13 @@ Each repo is read at most once per session and kept in an in-memory cache.
 - Multimodal repos nest the language model config under `text_config`
 - `head_dim` is frequently absent and is derived from `hidden_size ÷ num_attention_heads`
 - A missing `num_key_value_heads` means plain MHA, so it falls back to `num_attention_heads`
-- `quantization_config` sets the weight precision automatically when present
+- `quantization_config` sets the weight precision automatically when present, reading the
+  per-group `num_bits` that compressed-tensors nests rather than the top level
+- `kv_lora_rank` + `qk_rope_head_dim` mark a latent-attention model and size its real cache
+- The attention layers are counted from `layer_types`, Nemotron's `hybrid_override_pattern`
+  or Qwen3 Next's `full_attention_interval`, whichever the config publishes
+- A `sliding_window` is ignored when `use_sliding_window` is false, which is how Qwen2.5 and
+  Phi-4 Mini declare a window they do not use
 
 Every field stays editable, so a failed lookup never blocks you.
 
@@ -68,8 +100,10 @@ Every field stays editable, so a failed lookup never blocks you.
 The app raises a note instead of silently returning a wrong number:
 
 - **Mixture of Experts** — every expert weight occupies memory, not just the active ones
-- **Latent attention (MLA)**, as in DeepSeek V2/V3 — the compressed cache is much smaller
-- **Sliding-window attention** — the cache is capped by the window, not by max context
+- **Latent attention (MLA)** — modelled, including the copy each GPU keeps of it
+- **Hybrid stacks** — only the attention layers hold a KV cache; the Mamba or linear-attention
+  state is small, fixed, and not counted here
+- **Sliding-window attention** — modelled per layer, since most such models window only some
 
 ### Gated repos and CORS
 
@@ -96,6 +130,9 @@ runtime and accelerator. Measure it once, apply it afterwards.
 ## Layout
 
 ```
+scripts/
+  redhat-minimums.json  the published vRAM table, transcribed from the PDF
+  validate-redhat.mjs   checks every preset against it
 src/
   lib/
     constants.js     accelerators, precisions, presets

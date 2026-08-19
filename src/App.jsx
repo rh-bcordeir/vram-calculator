@@ -27,10 +27,21 @@ export default function App() {
   const [model, setModel] = useState({
     params: 8.17,
     layers: 40,
+    // Layers that actually hold a KV cache. Equal to `layers` on a plain
+    // transformer; a fraction of it on a hybrid Mamba or linear-attention stack.
+    kvLayers: 40,
     kvHeads: 8,
     headDim: 128,
+    // Set only by latent-attention models, which cache one compressed vector
+    // per layer per token instead of a tensor pair per head.
+    kvLatent: null,
+    swaLayers: 0,
+    swaWindow: 0,
     hidden: 4096,
-    keptParams: 0.4,
+    keptParams: 0.2,
+    // Bytes per parameter for the part quantization leaves alone: 16 bits on
+    // nearly every checkpoint, 32 on the float32 ones.
+    keptBytes: 2,
   });
   const [precision, setPrecision] = useState("fp16");
   const [kvDtype, setKvDtype] = useState("auto");
@@ -74,7 +85,7 @@ export default function App() {
   /** A count that does not divide the KV heads is not a tight fit — vLLM exits
    *  on startup. Memory arithmetic says nothing about it, so it is checked
    *  separately and allowed to override the verdict. */
-  const tpSizes = tpSizesFor(model.kvHeads);
+  const tpSizes = tpSizesFor(model.kvHeads, model.kvLatent);
   const tpValid = tpSizes.includes(gpuCount);
 
   /** Picking an instance is a shortcut: it fills the two fields below it, which
@@ -205,9 +216,10 @@ export default function App() {
                 {!tpValid && (
                   <div className="mt-4">
                     <Alert state="danger" heading="vLLM will not start">
-                      {gpuCount} does not divide the {model.kvHeads} KV heads this model has, so the
-                      attention cannot be split evenly across the GPUs. Use {tpSizes.join(" or ")}{" "}
-                      instead — the memory below is only reachable at those counts.
+                      {gpuCount} neither divides nor is divisible by the {model.kvHeads} KV heads
+                      this model has, so the attention cannot be split evenly across the GPUs. Use{" "}
+                      {tpSizes.join(" or ")} instead — the memory below is only reachable at those
+                      counts.
                     </Alert>
                   </div>
                 )}
@@ -261,7 +273,7 @@ export default function App() {
                   </p>
                   <p className="text-row leading-[1.5] text-muted">
                     {!tpValid
-                      ? `Tensor parallelism cannot split ${model.kvHeads} KV heads across ${gpuCount} GPUs, whatever the memory says.`
+                      ? `Tensor parallelism cannot split ${model.kvHeads} KV heads evenly across ${gpuCount} GPUs, whatever the memory says.`
                       : result.fits
                         ? `${fmt(result.slack)} GiB left of the ${fmt(result.usable)} GiB usable on ${gpuCount}× ${gpu.name}.`
                         : `${fmt(-result.slack)} GiB short. ${gpuCount}× ${gpu.name} gives ${fmt(result.usable)} GiB usable.`}
@@ -277,6 +289,12 @@ export default function App() {
                   label="KV cache per request"
                   value={`${fmt(result.kvPerRequestGib, 2)} GiB`}
                 />
+                {result.kvReplicas > 1 && (
+                  <TableRow
+                    label="KV cache copies"
+                    value={`${result.kvReplicas}× (replicated)`}
+                  />
+                )}
                 <TableRow
                   label="Max concurrency at this context"
                   value={`${result.maxConcurrency}`}
@@ -284,7 +302,11 @@ export default function App() {
                 />
                 <TableRow
                   label="Max context at this concurrency"
-                  value={`${result.maxContext.toLocaleString("en-US")} tokens`}
+                  value={
+                    Number.isFinite(result.maxContext)
+                      ? `${result.maxContext.toLocaleString("en-US")} tokens`
+                      : "unbounded (every layer is windowed)"
+                  }
                   warn={result.maxContext < context}
                 />
               </div>
@@ -308,8 +330,9 @@ export default function App() {
               <p className="text-note leading-[1.6] text-muted">
                 A planning estimate. Confirm it against the{" "}
                 <code className={code}>GPU KV cache size</code> vLLM prints at startup, or the{" "}
-                <code className={code}>vllm:gpu_cache_usage_perc</code> metric. Latent attention
-                (MLA) and sliding-window models cache far less than this formula assumes.
+                <code className={code}>vllm:gpu_cache_usage_perc</code> metric. Latent attention,
+                sliding windows and hybrid layer stacks are modelled, but Mamba and linear-attention
+                state is not — it is small and fixed, and it is not counted here.
               </p>
             </section>
           </div>

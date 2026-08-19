@@ -1,8 +1,25 @@
 import React, { useState } from "react";
 import { fetchModel, parseRepoId } from "../lib/huggingface.js";
-import { PRECISIONS, KV_DTYPES, PRESETS, PRESET_GROUPS } from "../lib/constants.js";
+import { PRECISIONS, KV_DTYPES, PRESETS, PRESET_GROUPS, keptFor } from "../lib/constants.js";
 import { NumberField, SelectField } from "./Fields.jsx";
 import { card, control, fieldWrap, fieldLabel, focusRing, hint, legend } from "../lib/ui.js";
+
+/** Every field a preset fills in, for one weight precision. */
+function modelFromPreset(p, precision) {
+  return {
+    params: p.params,
+    layers: p.layers,
+    kvLayers: p.kvLayers ?? p.layers,
+    kvHeads: p.kvHeads,
+    headDim: p.headDim,
+    kvLatent: p.kvLatent ?? null,
+    swaLayers: p.swaLayers ?? 0,
+    swaWindow: p.swaWindow ?? 0,
+    hidden: p.hidden,
+    keptParams: keptFor(p, precision),
+    keptBytes: p.keptBytes ?? 2,
+  };
+}
 
 const STATUS_COLOR = {
   loading: "text-muted",
@@ -33,10 +50,15 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
       setModel({
         params: m.params ?? model.params,
         layers: m.layers,
+        kvLayers: m.kvLayers,
         kvHeads: m.kvHeads,
         headDim: m.headDim,
+        kvLatent: m.kvLatent,
+        swaLayers: m.swaLayers,
+        swaWindow: m.swaWindow,
         hidden: m.hidden,
         keptParams: m.keptParams,
+        keptBytes: m.keptBytes,
       });
       setPrecision(m.precision);
       setNotes(m.notes);
@@ -60,21 +82,23 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
     const p = PRESETS.find((m) => m.id === id);
     if (!p) return;
 
-    setModel({
-      params: p.params,
-      layers: p.layers,
-      kvHeads: p.kvHeads,
-      headDim: p.headDim,
-      hidden: p.hidden,
-      keptParams: p.keptB,
-    });
+    // A preset that does not ship at the current precision switches to one it
+    // does; leaving it would show the very number the restriction exists to
+    // prevent.
+    const next = p.precisions && !p.precisions.includes(precision) ? p.precisions[0] : precision;
+    if (next !== precision) setPrecision(next);
+
+    setModel(modelFromPreset(p, next));
     setNotes(p.notes ?? []);
     setSource({ label: p.name, cached: false });
     setStatus({ state: "idle" });
+  }
 
-    // Leaving a disabled precision selected would show the very number the
-    // restriction exists to prevent.
-    if (p.precisions && !p.precisions.includes(precision)) setPrecision(p.precisions[0]);
+  /** The 16-bit share is measured per checkpoint, so it moves with precision. */
+  function choosePrecision(id) {
+    setPrecision(id);
+    const p = PRESETS.find((m) => m.id === preset);
+    if (p) setModel(modelFromPreset(p, id));
   }
 
   /** Presets may narrow the precisions they can be trusted at. A repo loaded
@@ -151,6 +175,13 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
       <div className="grid grid-cols-2 gap-2.5 min-[521px]:grid-cols-4">
         <NumberField label="Params (B)" value={model.params} onChange={field("params")} step={0.01} />
         <NumberField label="Layers" value={model.layers} onChange={field("layers")} int min={1} />
+        <NumberField
+          label="Attention layers"
+          value={model.kvLayers ?? model.layers}
+          onChange={field("kvLayers")}
+          int
+          min={1}
+        />
         <NumberField label="KV heads" value={model.kvHeads} onChange={field("kvHeads")} int min={1} />
         <NumberField label="Head dim" value={model.headDim} onChange={field("headDim")} int min={1} />
         <NumberField label="Hidden size" value={model.hidden} onChange={field("hidden")} int min={1} />
@@ -158,7 +189,9 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
 
       <p className={hint}>
         Every field stays editable. Loading a repo only fills them in — nothing is fetched until you
-        press Load, and each repo is read once per session.
+        press Load, and each repo is read once per session. <b>Attention layers</b> is the count that
+        actually holds a KV cache: the same as Layers on a plain transformer, a fraction of it on a
+        hybrid Mamba or linear-attention stack.
       </p>
 
       <label className={fieldWrap}>
@@ -179,7 +212,7 @@ export default function ModelPanel({ model, setModel, precision, setPrecision, k
                   ? "border-ink bg-ink font-bold text-panel"
                   : "border-line bg-sunken text-muted"
               } ${allows(p.id) ? "cursor-pointer" : ""}`}
-              onClick={() => setPrecision(p.id)}
+              onClick={() => choosePrecision(p.id)}
             >
               {p.name}
             </button>

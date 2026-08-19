@@ -1,0 +1,1024 @@
+[
+ {
+  "preset": "granite-31-8b",
+  "precision": "fp16",
+  "repo": "RedHatAI/granite-3.1-8b-instruct",
+  "minVramGB": 19,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "4XL4",
+   "8XA100-40",
+   "8XA100-80"
+  ]
+ },
+ {
+  "preset": "granite-31-8b",
+  "precision": "fp8",
+  "repo": "RedHatAI/granite-3.1-8b-instruct-fp8-dynamic",
+  "minVramGB": 11,
+  "gpus": [
+   "1XH200"
+  ]
+ },
+ {
+  "preset": "granite-31-8b",
+  "precision": "int4",
+  "repo": "RedHatAI/granite-3.1-8b-instruct-quantized.w4a16",
+  "minVramGB": 6,
+  "gpus": [
+   "1XH200"
+  ]
+ },
+ {
+  "preset": "granite-40-h-tiny",
+  "precision": "fp8",
+  "repo": "RedHatAI/granite-4.0-h-tiny-FP8-dynamic",
+  "minVramGB": 9,
+  "gpus": [
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "1XL4"
+  ]
+ },
+ {
+  "preset": "granite-40-h-small",
+  "precision": "fp8",
+  "repo": "RedHatAI/granite-4.0-h-small-FP8-dynamic",
+  "minVramGB": 38,
+  "gpus": [
+   "1XA100-80",
+   "1XB200",
+   "1XH100",
+   "1XH200"
+  ]
+ },
+ {
+  "preset": "llama-31-8b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Llama-3.1-8B-Instruct",
+  "minVramGB": 19,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "4XL4",
+   "8XA100-40",
+   "8XA100-80"
+  ]
+ },
+ {
+  "preset": "llama-31-8b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Meta-Llama-3.1-8B-Instruct-FP8-dynamic",
+  "minVramGB": 11,
+  "gpus": [
+   "1XH200"
+  ]
+ },
+ {
+  "preset": "llama-33-70b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Llama-3.3-70B-Instruct",
+  "minVramGB": 163,
+  "gpus": [
+   "2XH200",
+   "4XA100-80",
+   "4XH100",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "llama-33-70b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic",
+  "minVramGB": 84,
+  "gpus": [
+   "1XH200",
+   "2XH100",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "8XA100-40",
+   "8XA100-80",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "llama-33-70b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Llama-3.3-70B-Instruct-quantized.w8a8",
+  "minVramGB": 84,
+  "gpus": [
+   "2XH100",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "llama-33-70b",
+  "precision": "int4",
+  "repo": "RedHatAI/Llama-3.3-70B-Instruct-quantized.w4a16",
+  "minVramGB": 46,
+  "gpus": [
+   "1XH100",
+   "2XH100",
+   "4XA100-40",
+   "4XH100",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "llama-31-nemotron-70b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Llama-3.1-Nemotron-70B-Instruct-HF",
+  "minVramGB": 163,
+  "gpus": [
+   "2XH200",
+   "4XA100-80",
+   "4XH100",
+   "8XA100-40"
+  ]
+ },
+ {
+  "preset": "llama-31-nemotron-70b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Llama-3.1-Nemotron-70B-Instruct-HF-FP8-dynamic",
+  "minVramGB": 84,
+  "gpus": [
+   "1XH200",
+   "2XA100-80",
+   "2XH100",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "llama-4-scout-17b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Llama-4-Scout-17B-16E-Instruct",
+  "minVramGB": 250,
+  "gpus": [
+   "4XA100-80",
+   "4XH100",
+   "4XH200",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "llama-4-scout-17b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Llama-4-Scout-17B-16E-Instruct-FP8-dynamic",
+  "minVramGB": 132,
+  "gpus": [
+   "2XH100",
+   "2XH200",
+   "4XH100",
+   "8XH100",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "llama-4-scout-17b",
+  "precision": "int4",
+  "repo": "RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16",
+  "minVramGB": 75,
+  "gpus": [
+   "2XH100",
+   "2XH200",
+   "4XA100-40",
+   "4XH100",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "llama-4-maverick-17b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Llama-4-Maverick-17B-128E-Instruct",
+  "minVramGB": 924,
+  "gpus": [
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "llama-4-maverick-17b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Llama-4-Maverick-17B-128E-Instruct-FP8",
+  "minVramGB": 480,
+  "gpus": [
+   "4XH200",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "ministral-3-3b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Ministral-3-3B-Instruct-2512",
+  "minVramGB": 6,
+  "gpus": [
+   "1XA100-80",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-80",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "2XL4",
+   "4XA100-80",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "4XL4",
+   "8XA100-80",
+   "8XB200",
+   "8XH100",
+   "8XH200",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "ministral-3-14b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Ministral-3-14B-Instruct-2512",
+  "minVramGB": 19,
+  "gpus": [
+   "1XA100-80",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-80",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "2XL4",
+   "4XA100-80",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "4XL4",
+   "8XA100-80",
+   "8XB200",
+   "8XH100",
+   "8XH200",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "mistral-large-3-675b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Mistral-Large-3-675B-Instruct-2512",
+  "minVramGB": 784,
+  "gpus": [
+   "8XB200",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "mistral-small-24b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Mistral-Small-24B-Instruct-2501",
+  "minVramGB": 55,
+  "gpus": [
+   "1XA100-80",
+   "1XH100",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "4XL4",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "mistral-small-31-24b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Mistral-Small-3.1-24B-Instruct-2503",
+  "minVramGB": 56,
+  "gpus": [
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "4XL4",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "mistral-small-31-24b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Mistral-Small-3.1-24B-Instruct-2503-FP8-dynamic",
+  "minVramGB": 30,
+  "gpus": [
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "4XL4",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "mistral-small-31-24b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Mistral-Small-3.1-24B-Instruct-2503-quantized.w8a8",
+  "minVramGB": 30,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "4XL4",
+   "8XA100-40",
+   "8XA100-80",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "mistral-small-31-24b",
+  "precision": "int4",
+  "repo": "RedHatAI/Mistral-Small-3.1-24B-Instruct-2503-quantized.w4a16",
+  "minVramGB": 18,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "8XA100-40",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "devstral-small-2-24b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Devstral-Small-2-24B-Instruct-2512",
+  "minVramGB": 30,
+  "gpus": [
+   "1XA100-80",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "2XA100-80",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "4XA100-80",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "4XL4",
+   "8XA100-80",
+   "8XB200",
+   "8XH100",
+   "8XH200",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "mixtral-8x7b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Mixtral-8x7B-Instruct-v0.1",
+  "minVramGB": 108,
+  "gpus": [
+   "1XH200",
+   "2XA100-80",
+   "2XH100",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100",
+   "8XA100-40",
+   "8XH100",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "phi-4-mini",
+  "precision": "fp8",
+  "repo": "RedHatAI/Phi-4-mini-instruct-FP8-dynamic",
+  "minVramGB": 7,
+  "gpus": [
+   "1XA100-80",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-80",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "2XL4",
+   "4XA100-80",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "4XL4",
+   "8XA100-80",
+   "8XH100",
+   "8XH200",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "phi-4",
+  "precision": "fp16",
+  "repo": "RedHatAI/phi-4",
+  "minVramGB": 34,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4"
+  ]
+ },
+ {
+  "preset": "phi-4",
+  "precision": "fp8",
+  "repo": "RedHatAI/phi-4-FP8-dynamic",
+  "minVramGB": 19,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4"
+  ]
+ },
+ {
+  "preset": "phi-4",
+  "precision": "fp8",
+  "repo": "RedHatAI/phi-4-quantized.w8a8",
+  "minVramGB": 19,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100"
+  ]
+ },
+ {
+  "preset": "phi-4",
+  "precision": "int4",
+  "repo": "RedHatAI/phi-4-quantized.w4a16",
+  "minVramGB": 11,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4"
+  ]
+ },
+ {
+  "preset": "phi-4-reasoning",
+  "precision": "fp16",
+  "repo": "RedHatAI/Phi-4-reasoning",
+  "minVramGB": 34,
+  "gpus": [
+   "1XH200"
+  ]
+ },
+ {
+  "preset": "phi-4-reasoning",
+  "precision": "fp8",
+  "repo": "RedHatAI/Phi-4-reasoning-FP8-dynamic",
+  "minVramGB": 19,
+  "gpus": [
+   "1XA100-80",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XA100-80",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "2XL4"
+  ]
+ },
+ {
+  "preset": "qwen25-7b",
+  "precision": "fp16",
+  "repo": "RedHatAI/Qwen2.5-7B-Instruct",
+  "minVramGB": 18,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100"
+  ]
+ },
+ {
+  "preset": "qwen25-7b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Qwen2.5-7B-Instruct-FP8-dynamic",
+  "minVramGB": 11,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4",
+   "4XA100-40",
+   "4XA100-80",
+   "4XH100"
+  ]
+ },
+ {
+  "preset": "qwen25-7b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Qwen2.5-7B-Instruct-quantized.w8a8",
+  "minVramGB": 11,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XL4",
+   "2XA100-40",
+   "2XA100-80",
+   "2XH100",
+   "2XL4",
+   "4XA100-40",
+   "4XH100",
+   "4XL4"
+  ]
+ },
+ {
+  "preset": "qwen25-7b",
+  "precision": "int4",
+  "repo": "RedHatAI/Qwen2.5-7B-Instruct-quantized.w4a16",
+  "minVramGB": 7,
+  "gpus": [
+   "1XA100-40",
+   "1XA100-80",
+   "1XH100",
+   "1XL4",
+   "2XA100-40",
+   "2XH100",
+   "4XA100-40",
+   "4XH100",
+   "4XL4"
+  ]
+ },
+ {
+  "preset": "qwen3-8b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Qwen3-8B-FP8-dynamic",
+  "minVramGB": 11,
+  "gpus": [
+   "1XA100-40",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XH100",
+   "2XH200",
+   "2XL4",
+   "4XA100-40",
+   "4XH100",
+   "4XH200",
+   "4XL4",
+   "8XA100-40",
+   "8XH100",
+   "8XH200",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "qwen35-35b-a3b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Qwen3.5-35B-A3B-FP8-dynamic",
+  "minVramGB": 44,
+  "gpus": [
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "2XA100-80",
+   "2XH100",
+   "2XH200",
+   "4XA100-80",
+   "4XH100",
+   "4XH200",
+   "8XA100-80",
+   "8XH100",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "qwen3-next-80b-a3b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Qwen3-Next-80B-A3B-Instruct-FP8",
+  "minVramGB": 95,
+  "gpus": [
+   "1XB200",
+   "2XA100-80",
+   "2XB200",
+   "2XH200",
+   "4XA100-80",
+   "4XH200"
+  ]
+ },
+ {
+  "preset": "qwen3-next-80b-a3b",
+  "precision": "int4",
+  "repo": "RedHatAI/Qwen3-Next-80B-A3B-Instruct-quantized.w4a16",
+  "minVramGB": 51,
+  "gpus": [
+   "1XA100-80",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "2XA100-80",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "4XA100-80",
+   "4XB200",
+   "4XH100",
+   "4XH200"
+  ]
+ },
+ {
+  "preset": "qwen35-122b-a10b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Qwen3.5-122B-A10B-FP8-dynamic",
+  "minVramGB": 148,
+  "gpus": [
+   "2XA100-80",
+   "2XH100",
+   "4XA100-80",
+   "4XH200",
+   "8XA100-80",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "qwen35-397b-a17b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Qwen3.5-397B-A17B-FP8-dynamic",
+  "minVramGB": 466,
+  "gpus": [
+   "4XH200",
+   "8XA100-80",
+   "8XH100"
+  ]
+ },
+ {
+  "preset": "qwen3-coder-480b-a35b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Qwen3-Coder-480B-A35B-Instruct-FP8",
+  "minVramGB": 555,
+  "gpus": [
+   "4XB200",
+   "4XH200"
+  ]
+ },
+ {
+  "preset": "nemotron-nano-9b-v2",
+  "precision": "fp8",
+  "repo": "RedHatAI/NVIDIA-Nemotron-Nano-9B-v2-FP8-dynamic",
+  "minVramGB": 12,
+  "gpus": [
+   "1XA100-40",
+   "1XB200",
+   "1XH100",
+   "1XH200"
+  ]
+ },
+ {
+  "preset": "nemotron-nano-9b-v2",
+  "precision": "int4",
+  "repo": "RedHatAI/NVIDIA-Nemotron-Nano-9B-v2-quantized.w4a16",
+  "minVramGB": 8,
+  "gpus": [
+   "1XH100"
+  ]
+ },
+ {
+  "preset": "nemotron-3-nano-30b-a3b",
+  "precision": "fp8",
+  "repo": "RedHatAI/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
+  "minVramGB": 38,
+  "gpus": [
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "8XB200",
+   "8XH100",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "nemotron-3-super-120b-a12b",
+  "precision": "fp16",
+  "repo": "RedHatAI/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
+  "minVramGB": 285,
+  "gpus": [
+   "2XH200",
+   "4XA100-80",
+   "4XH100",
+   "4XH200",
+   "8XA100-80",
+   "8XH100",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "nemotron-3-super-120b-a12b",
+  "precision": "fp8",
+  "repo": "RedHatAI/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
+  "minVramGB": 148,
+  "gpus": [
+   "1XH200",
+   "2XH100",
+   "2XH200",
+   "4XH100",
+   "4XH200",
+   "8XH100",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "sarvam-30b",
+  "precision": "fp8",
+  "repo": "RedHatAI/sarvam-30b-FP8-Dynamic",
+  "minVramGB": 45,
+  "gpus": [
+   "1XA100-80",
+   "1XH100",
+   "1XH200",
+   "2XA100-80",
+   "2XH100",
+   "2XH200",
+   "4XA100-80",
+   "4XH100",
+   "4XH200",
+   "8XA100-80",
+   "8XH100",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "sarvam-105b",
+  "precision": "fp8",
+  "repo": "RedHatAI/sarvam-105b-FP8-Dynamic",
+  "minVramGB": 130,
+  "gpus": [
+   "1XH200",
+   "2XH200",
+   "4XH100",
+   "4XH200",
+   "8XH100",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "smollm3-3b",
+  "precision": "fp8",
+  "repo": "RedHatAI/SmolLM3-3B-FP8-dynamic",
+  "minVramGB": 5,
+  "gpus": [
+   "1XA100-40",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "2XL4",
+   "4XA100-40",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "4XL4"
+  ]
+ },
+ {
+  "preset": "gemma-3n-e4b",
+  "precision": "fp8",
+  "repo": "RedHatAI/gemma-3n-E4B-it-FP8-dynamic",
+  "minVramGB": 14,
+  "gpus": [
+   "1XA100-40",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XH100",
+   "2XH200",
+   "2XL4",
+   "4XA100-40",
+   "4XH100",
+   "4XH200",
+   "4XL4",
+   "8XA100-40",
+   "8XH100",
+   "8XH200",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "apertus-8b",
+  "precision": "fp8",
+  "repo": "RedHatAI/Apertus-8B-Instruct-2509-FP8-dynamic",
+  "minVramGB": 11,
+  "gpus": [
+   "1XA100-80",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "2XA100-80",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "4XA100-80",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "8XA100-80",
+   "8XB200",
+   "8XH100",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "gpt-oss-20b",
+  "precision": "int4",
+  "repo": "RedHatAI/gpt-oss-20b",
+  "minVramGB": 16,
+  "gpus": [
+   "1XA100-40",
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "1XL4",
+   "2XA100-40",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "2XL4",
+   "4XA100-40",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "4XL4",
+   "8XA100-40",
+   "8XB200",
+   "8XH100",
+   "8XH200",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "gpt-oss-120b",
+  "precision": "int4",
+  "repo": "RedHatAI/gpt-oss-120b",
+  "minVramGB": 76,
+  "gpus": [
+   "1XB200",
+   "1XH100",
+   "1XH200",
+   "2XB200",
+   "2XH100",
+   "2XH200",
+   "4XA100-40",
+   "4XB200",
+   "4XH100",
+   "4XH200",
+   "4XL4",
+   "8XA100-40",
+   "8XB200",
+   "8XH100",
+   "8XH200",
+   "8XL4"
+  ]
+ },
+ {
+  "preset": "minimax-m25",
+  "precision": "fp8",
+  "repo": "RedHatAI/MiniMax-M2.5",
+  "minVramGB": 265,
+  "gpus": [
+   "2XB200",
+   "4XA100-80",
+   "4XB200",
+   "4XH100",
+   "4XH200"
+  ]
+ },
+ {
+  "preset": "deepseek-r1-0528",
+  "precision": "int4",
+  "repo": "RedHatAI/DeepSeek-R1-0528-quantized.w4a16",
+  "minVramGB": 428,
+  "gpus": [
+   "4XB200",
+   "4XH200",
+   "8XB200",
+   "8XH100",
+   "8XH200"
+  ]
+ },
+ {
+  "preset": "kimi-k2",
+  "precision": "int4",
+  "repo": "RedHatAI/Kimi-K2-Instruct-quantized.w4a16",
+  "minVramGB": 629,
+  "gpus": [
+   "4XB200",
+   "8XB200",
+   "8XH200"
+  ]
+ }
+]
