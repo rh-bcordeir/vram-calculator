@@ -1,154 +1,165 @@
-# How much VRAM
+# Quanta VRAM
 
-A GPU sizing calculator for LLM inference on vLLM. Paste a Hugging Face repo, set your
-workload, and see whether the model fits — broken down into weights, KV cache and overhead,
-checked against the memory the serving engine is actually allowed to use.
+Uma calculadora de dimensionamento de GPU para inferência de LLM no vLLM. Cole um repositório
+do Hugging Face, defina a sua carga de trabalho e veja se o modelo cabe — separado em pesos,
+cache KV e overhead, comparado com a memória que o motor de inferência tem permissão de usar
+de verdade.
 
-Built with React and Vite. No backend, no build-time data, no tracking.
+Feita com React e Vite. Sem backend, sem dados embutidos no build, sem rastreamento.
 
-## Why
+## Por quê
 
-The rule of thumb everyone quotes — roughly 2 bytes per parameter at 16-bit precision — only
-covers the weights. In production the KV cache is often the larger number, and it scales with
-context length _and_ concurrency. A model that loads fine will still fall over under load if
-the cache pool runs dry.
+A regra de bolso que todo mundo repete — mais ou menos 2 bytes por parâmetro em precisão de
+16 bits — cobre só os pesos. Em produção o cache KV costuma ser o número maior, e ele cresce
+com o tamanho do contexto _e_ com a concorrência. Um modelo que carrega numa boa ainda vai cair
+sob carga se a piscina de cache secar.
 
-This tool computes all three components and solves the equation backwards too: how many
-concurrent requests fit at your context length, and how much context fits at your concurrency.
+Esta ferramenta calcula os três componentes e também resolve a equação ao contrário: quantas
+requisições simultâneas cabem no seu contexto, e quanto contexto cabe na sua concorrência.
 
-## Running it
+## Como rodar
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm run build    # static output in dist/
-npm run preview  # serve the production build locally
+npm run build    # saída estática em dist/
+npm run preview  # serve o build de produção localmente
 ```
 
-## How the numbers are produced
+## De onde vêm os números
 
 ```
-weights      = (params − kept) × bytes_per_param + kept × kept_bytes
-kv_per_layer = elems × replicas × kv_bytes          per token
-kv_total     = kv_per_layer × tokens_cached × concurrency
-overhead     = 0.59 GiB per device + batched_tokens × hidden × 13.35 × 2
-usable       = gpu_capacity × gpu_count × gpu_memory_utilization
+pesos          = (params − kept) × bytes_por_param + kept × kept_bytes
+kv_por_camada  = elems × replicas × kv_bytes          por token
+kv_total       = kv_por_camada × tokens_em_cache × concorrência
+overhead       = 0,59 GiB por dispositivo + batched_tokens × hidden × 13,35 × 2
+utilizável     = capacidade_gpu × qtd_gpus × gpu_memory_utilization
 ```
 
-- **`kept`** is the share of the model quantization leaves alone — embeddings, output head,
-  MoE routers, vision towers. It is 3% of Llama 3.3 70B but 12% of Kimi K2, so ignoring it
-  understates a quantized MoE checkpoint badly. `kept_bytes` is its width: 2 nearly always,
-  4 on the float32 releases.
-- **`elems`** is `2 × kv_heads × head_dim` for standard attention — the 2 covers the key and
-  the value tensor, and `kv_heads` means `num_key_value_heads`, not `num_attention_heads`.
-  Latent-attention models cache one compressed vector instead, two orders of magnitude less.
-- **`replicas`** is how many copies tensor parallelism ends up holding. vLLM shards the KV
-  heads across the ranks while there are enough to go round and replicates below that, so a
-  2-KV-head model on 8 GPUs keeps 4 copies and a single-head latent cache keeps 8.
-- **`tokens_cached`** counts only the layers that hold a KV cache — 4 of Granite 4.0 H's 40,
-  the rest being Mamba — and stops charging windowed layers once the context passes their
-  window.
-- **Overhead** is a line fitted through two measurements on a live cluster; activation memory
-  tracks tokens in flight and model width, not weight count. `CALIBRATION.md` shows the work.
+- **`kept`** é a parte do modelo que a quantização não toca — tabela de embeddings, cabeça de
+  saída, roteadores de MoE, torres de visão. São 3% do Llama 3.3 70B, mas 12% do Kimi K2, então
+  ignorar isso subestima feio um checkpoint MoE quantizado. `kept_bytes` é a largura dessa
+  parte: 2 quase sempre, 4 nos modelos publicados em float32.
+- **`elems`** é `2 × kv_heads × head_dim` na atenção padrão — o 2 cobre o tensor de chave e o de
+  valor, e `kv_heads` significa `num_key_value_heads`, não `num_attention_heads`. Modelos de
+  atenção latente guardam um único vetor comprimido no lugar disso, duas ordens de grandeza
+  menor.
+- **`replicas`** é quantas cópias do cache o paralelismo de tensores acaba mantendo. O vLLM
+  distribui as cabeças KV entre as GPUs enquanto houver cabeças suficientes e replica quando
+  não houver: um modelo de 2 cabeças KV em 8 GPUs fica com 4 cópias, e um cache latente de
+  cabeça única fica com 8.
+- **`tokens_em_cache`** conta só as camadas que realmente guardam cache KV — 4 das 40 do
+  Granite 4.0 H, já que as outras são Mamba — e para de cobrar pelas camadas com janela
+  deslizante assim que o contexto passa da janela delas.
+- **Overhead** é uma reta ajustada a partir de duas medições em um cluster real; a memória de
+  ativação acompanha os tokens em voo e a largura do modelo, não a quantidade de pesos. O
+  `CALIBRATION.md` mostra a conta inteira.
 
-Accelerator capacities are the values the driver reports, not the marketing number: an
-"80GB" A100 has about 79.2 GiB.
+As capacidades dos aceleradores são os valores que o driver informa, não o número de marketing:
+uma A100 de "80GB" tem cerca de 79,2 GiB.
 
-## Checking it against Red Hat's published minimums
+## Conferindo contra os mínimos publicados pela Red Hat
 
 ```bash
-npm run validate              # summary, plus any row outside ±10%
-npm run validate -- --verbose # all 61 rows
+npm run validate              # resumo, mais qualquer linha fora de ±10%
+npm run validate -- --verbose # todas as 61 linhas
 ```
 
-Every model in the preset list is one Red Hat validates, and 61 of those rows publish a
-minimum vRAM figure and a list of supported GPU configurations.
-`scripts/redhat-minimums.json` holds them; the script checks both the size and the shape —
-that each published machine is one the app would let you pick, and that it holds the weights.
-All 61 land within 10% of the published figure, 58 within 5%, with no shape failures.
+Todo modelo da lista de presets é um modelo que a Red Hat valida, e 61 dessas linhas publicam
+uma vRAM mínima e uma lista de configurações de GPU suportadas. O
+`scripts/redhat-minimums.json` guarda essa tabela; o script confere o tamanho **e** o formato —
+que cada máquina publicada seja uma que o app deixa você escolher, e que ela comporte os pesos.
+As 61 ficam dentro de 10% do valor publicado, 58 dentro de 5%, sem nenhuma falha de formato.
 
-## Hugging Face lookup
+## Consulta ao Hugging Face
 
-Nothing is fetched on page load. When you press **Load**, two requests go out:
+Nada é buscado ao abrir a página. Quando você aperta **Load**, saem duas requisições:
 
-| Request | Supplies |
+| Requisição | O que fornece |
 | --- | --- |
-| `/{repo}/resolve/main/config.json` | layers, KV heads, head dim, latent rank, layer mix, quantization, trained context |
-| `/api/models/{repo}` | parameter count and the 16-bit share, from the `safetensors` metadata |
+| `/{repo}/resolve/main/config.json` | camadas, cabeças KV, head dim, rank latente, mistura de camadas, quantização, contexto treinado |
+| `/api/models/{repo}` | contagem de parâmetros e a fatia em 16 bits, dos metadados `safetensors` |
 
-Mistral's own repos ship `params.json` instead of `config.json`; that layout is read too.
+Os repositórios da própria Mistral trazem `params.json` em vez de `config.json`; esse formato
+também é lido.
 
-Each repo is read at most once per session and kept in an in-memory cache.
+Cada repositório é lido no máximo uma vez por sessão e fica num cache em memória.
 
-`config.json` is read defensively, because the fields are not always where you would expect:
+O `config.json` é lido com desconfiança, porque os campos nem sempre estão onde se espera:
 
-- Multimodal repos nest the language model config under `text_config`
-- `head_dim` is frequently absent and is derived from `hidden_size ÷ num_attention_heads`
-- A missing `num_key_value_heads` means plain MHA, so it falls back to `num_attention_heads`
-- `quantization_config` sets the weight precision automatically when present, reading the
-  per-group `num_bits` that compressed-tensors nests rather than the top level
-- `kv_lora_rank` + `qk_rope_head_dim` mark a latent-attention model and size its real cache
-- The attention layers are counted from `layer_types`, Nemotron's `hybrid_override_pattern`
-  or Qwen3 Next's `full_attention_interval`, whichever the config publishes
-- A `sliding_window` is ignored when `use_sliding_window` is false, which is how Qwen2.5 and
-  Phi-4 Mini declare a window they do not use
+- Repositórios multimodais aninham a config do modelo de linguagem em `text_config`
+- `head_dim` falta com frequência e é derivado de `hidden_size ÷ num_attention_heads`
+- A ausência de `num_key_value_heads` significa MHA puro, então cai de volta para
+  `num_attention_heads`
+- `quantization_config` define a precisão dos pesos automaticamente quando existe, lendo o
+  `num_bits` por grupo que o compressed-tensors aninha, em vez do nível de cima
+- `kv_lora_rank` + `qk_rope_head_dim` marcam um modelo de atenção latente e dimensionam o cache
+  real dele
+- As camadas de atenção são contadas a partir de `layer_types`, do
+  `hybrid_override_pattern` da Nemotron ou do `full_attention_interval` do Qwen3 Next — o que a
+  config publicar
+- Um `sliding_window` é ignorado quando `use_sliding_window` é falso, que é como o Qwen2.5 e o
+  Phi-4 Mini declaram uma janela que não usam
 
-Every field stays editable, so a failed lookup never blocks you.
+Todo campo continua editável, então uma consulta que falha nunca te trava.
 
-### When the formula does not apply
+### Quando a fórmula não se aplica
 
-The app raises a note instead of silently returning a wrong number:
+O app levanta um aviso em vez de devolver um número errado em silêncio:
 
-- **Mixture of Experts** — every expert weight occupies memory, not just the active ones
-- **Latent attention (MLA)** — modelled, including the copy each GPU keeps of it
-- **Hybrid stacks** — only the attention layers hold a KV cache; the Mamba or linear-attention
-  state is small, fixed, and not counted here
-- **Sliding-window attention** — modelled per layer, since most such models window only some
+- **Mixture of Experts** — todo peso de especialista ocupa memória, não só os ativos
+- **Atenção latente (MLA)** — modelada, incluindo a cópia que cada GPU mantém
+- **Arquiteturas híbridas** — só as camadas de atenção guardam cache KV; o estado de Mamba ou
+  de atenção linear é pequeno, fixo, e não é contado aqui
+- **Atenção com janela deslizante** — modelada camada a camada, já que a maioria desses modelos
+  aplica a janela só em parte delas
 
-### Gated repos and CORS
+### Repositórios com acesso restrito e CORS
 
-The browser calls `huggingface.co` directly, which works for public repos. Two cases need a
-proxy:
+O navegador chama o `huggingface.co` diretamente, o que funciona para repositórios públicos.
+Dois casos precisam de proxy:
 
-- The repo is gated or private and needs a token
-- Your network blocks the cross-origin request
+- O repositório é restrito ou privado e exige token
+- A sua rede bloqueia a requisição cross-origin
 
-`vite.config.js` includes a `/hf` dev proxy for the second case — set `VITE_HF_BASE=/hf`.
-For gated repos in production, put a small proxy in front that injects the token server-side,
-and point `VITE_HF_BASE` at it. Never ship a Hugging Face token to the browser.
+O `vite.config.js` já inclui um proxy `/hf` de desenvolvimento para o segundo caso — basta
+definir `VITE_HF_BASE=/hf`. Para repositórios restritos em produção, coloque um proxy pequeno
+na frente que injete o token no servidor e aponte `VITE_HF_BASE` para ele. Nunca mande um token
+do Hugging Face para o navegador.
 
-## Treat the output as an estimate
+## Trate o resultado como estimativa
 
-Verify against reality before you provision anything. vLLM prints `GPU KV cache size` at
-startup once profiling finishes, which tells you exactly how many tokens of cache survived.
-In a running cluster, `vllm:gpu_cache_usage_perc` and `vllm:num_preemptions_total` show
-whether the sizing held under real traffic — preemptions mean the cache is under pressure.
+Confirme na realidade antes de provisionar qualquer coisa. O vLLM imprime `GPU KV cache size`
+na inicialização, depois do profiling, e isso diz exatamente quantos tokens de cache sobraram.
+Num cluster rodando, `vllm:gpu_cache_usage_perc` e `vllm:num_preemptions_total` mostram se o
+dimensionamento se sustentou sob tráfego real — preempções significam cache sob pressão.
 
-The gap between the estimate and the observed value is a stable calibration factor for that
-runtime and accelerator. Measure it once, apply it afterwards.
+A diferença entre a estimativa e o valor observado é um fator de calibração estável para aquele
+runtime e aquele acelerador. Meça uma vez e aplique depois.
 
-## Layout
+## Estrutura
 
 ```
 scripts/
-  redhat-minimums.json  the published vRAM table, transcribed from the PDF
-  validate-redhat.mjs   checks every preset against it
+  redhat-minimums.json  a tabela de vRAM publicada, transcrita do PDF
+  validate-redhat.mjs   confere cada preset contra ela
 src/
   lib/
-    constants.js     accelerators, precisions, presets
-    vram.js          the calculation, as a pure function
-    huggingface.js   repo parsing, config extraction, fetch cache
-    useTheme.js      light/dark, persisted, set before first paint
+    constants.js     aceleradores, precisões, presets
+    vram.js          o cálculo, como função pura
+    huggingface.js   parsing de repositório, extração de config, cache de fetch
+    useTheme.js      claro/escuro, persistido, definido antes do primeiro paint
   components/
-    ModelPanel.jsx   repo lookup and model fields
-    MemoryMap.jsx    the allocation bar
-    Fields.jsx       shared form controls
+    ModelPanel.jsx   consulta de repositório e campos do modelo
+    MemoryMap.jsx    a barra de alocação
+    Fields.jsx       controles de formulário compartilhados
   App.jsx
-  index.css          both themes as CSS custom properties
+  index.css          os dois temas como CSS custom properties
 ```
 
-`vram.js` has no React and no I/O, so it can be lifted into a CLI or a notebook unchanged.
+O `vram.js` não tem React nem I/O, então dá para levar para uma CLI ou um notebook sem mudar
+nada.
 
-## License
+## Licença
 
 MIT
