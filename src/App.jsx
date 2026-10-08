@@ -148,7 +148,7 @@ export default function App() {
                   value={concurrency}
                   onChange={setConcurrency}
                   min={1}
-                  max={256}
+                  max={2000}
                   step={1}
                 />
                 <p className={hint}>
